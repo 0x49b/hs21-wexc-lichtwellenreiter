@@ -1,0 +1,165 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Working Hours</title>
+    <link rel="shortcut icon" href="../img/logo/logo-60x54.png" type="image/svg" />
+    <link rel="stylesheet"    href="../WorkingHours.css" />
+</head>
+<body>
+<header>
+    <img src="../img/logo/logo.svg" alt="Kolibri Logo" height="171">
+</header>
+<main>
+
+    <h1>Working Hours Test Bench</h1>
+
+    <fieldset name="openingHoursInput" id="openingHoursInput">
+        <legend>Working Hours</legend>
+
+        <div>
+            <label for="am_start">AM Start</label>
+            <input type="time" id="am_start" min="04:00">
+            until
+            <label for="am_end">AM End</label>
+            <input type="time" id="am_end">
+        </div>
+
+        <div>
+            <label for="pm_start">PM Start</label>
+            <input type="time" id="pm_start">
+            until
+            <label for="pm_end">PM End</label>
+            <input type="time" id="pm_end" max="22:00">
+        </div>
+
+    </fieldset>
+
+    <div>
+        <input type="checkbox" id="checkDisabled">
+        <label for="checkDisabled">Disabled</label>
+    </div>
+    <div>
+        <input type="checkbox" id="checkReadOnly">
+        <label for="checkReadOnly">Read Only</label>
+    </div>
+    <div>
+        <input type="checkbox" id="checkRequired">
+        <label for="checkRequired">Required</label>
+    </div>
+    <div>
+        <input type="checkbox" id="checkDarkTheme">
+        <label for="checkDarkTheme">Dark Theme</label>
+    </div>
+
+    <h2>Business rules</h2>
+    <div class="rules">
+        <div>Time values between 0:00 and 24:00, are required, cannot be empty.</div> <div>otherwise invalid</div>
+        <div>AM Start <= AM End.</div>                        <div>automatically enforced</div>
+        <div>AM End <= PM Start.</div>                        <div>automatically enforced</div>
+        <div>PM Start <= PM End.</div>                        <div>automatically enforced</div>
+        <div>Start not earlier than 4:00. </div>              <div>otherwise invalid</div>
+        <div>End not later than 22:00. </div>                 <div>otherwise invalid</div>
+        <div>Lunch break must be at least 40 minutes.</div>   <div>automatically enforced</div>
+        <div>Total time must not exceed 12 hours. </div>      <div>otherwise invalid</div>
+    </div>
+
+    <div>
+        <p>This is an initial version that is well suited to test the visual appearance of
+            your timespan component in the presence of various circumstances like "disabled", etc.
+            and combinations thereof. It is also nicely self-contained.</p>
+        <p>You will find that it is somewhat difficult to integrate and even more difficult to test
+            because of the many dependencies between the view components, the tacit assumptions
+            about data formats, and the lack of separation of concerns.</p>
+    </div>
+
+    <script>
+        checkDisabled.onclick = _ => checkDisabled.checked
+                                     ? openingHoursInput.setAttribute("disabled", true)                  // one can disable a fieldset
+                                     : openingHoursInput.removeAttribute("disabled");
+
+        const inputs = openingHoursInput.querySelectorAll("input");
+        checkReadOnly.onclick = _ => checkReadOnly.checked
+                                     ? inputs.forEach(input => input.setAttribute("readonly", true))     // only inputs can be set to readonly
+                                     : inputs.forEach(input => input.removeAttribute("readonly"));
+
+        checkRequired.onclick = _ => checkRequired.checked
+                                     ? inputs.forEach(input => input.setAttribute("required", true))
+                                     : inputs.forEach(input => input.removeAttribute("required"));
+
+        checkDarkTheme.onclick = _ => checkDarkTheme.checked
+                                     ? document.querySelector("html").classList.add("darkTheme")
+                                     : document.querySelector("html").classList.remove("darkTheme");
+
+        const timeStringToNumbers = timeString => {
+            const [hour, minute]  = timeString.split(":").map(Number);
+            const totalMinutes    = hour * 60 + minute;
+            return [totalMinutes, hour, minute];
+        }
+        const numbersToTimeString = (hour, minute) => String(hour).padStart(2,"0") + ":" + String(minute).padStart(2,"0");
+
+        const totalMinutesToTimeString = totalMinutes => {
+            const hour   = (totalMinutes / 60) | 0; // div
+            const minute = totalMinutes % 60;
+            return numbersToTimeString(hour, minute);
+        }
+
+        const lunchBreakRule = () => { // 40 min lunch break
+            if (! am_end.value)   return;
+            if (! pm_start.value) return;
+            const [amEndTime]   = timeStringToNumbers(am_end.value);
+            const [pmStartTime] = timeStringToNumbers(pm_start.value);
+
+            if (pmStartTime - amEndTime >= 40) return; // it's all fine, nothing to do
+            // otherwise move the pmStartTime back
+            pm_start.value = totalMinutesToTimeString(amEndTime + 40);
+            pm_start.dispatchEvent(new Event("change")); // trigger other change listeners
+        }
+
+        const sequenceRule = (startInput, endInput) => () => { // start must be <= end
+            if (! startInput.value) return;
+            if (! endInput.value)   return;
+            const [start_total] = timeStringToNumbers(startInput.value);
+            const [end_total]   = timeStringToNumbers(endInput.value);
+
+            if (start_total <= end_total) return ; // ok, we're fine
+            // otherwise move the later time back
+            endInput.value = startInput.value;
+            endInput.dispatchEvent(new Event("change"));
+        }
+
+        const totalHoursRule = () => { // not more than 12 hours
+            if (! am_start.value) return;
+            if (! am_end.value)   return;
+            if (! pm_start.value) return;
+            if (! pm_end.value)   return;
+            const [am_start_total] = timeStringToNumbers(am_start.value);
+            const [am_end_total]   = timeStringToNumbers(am_end.value);
+            const [pm_start_total] = timeStringToNumbers(pm_start.value);
+            const [pm_end_total]   = timeStringToNumbers(pm_end.value);
+
+            let validationError = "Must not exceed 12 hours in total";
+            if (am_end_total - am_start_total + pm_end_total - pm_start_total <= 12 * 60) { // ok, we're fine
+                validationError = "";
+            }
+            [am_start, am_end, pm_start, pm_end].forEach( element => element.setCustomValidity(validationError));
+        }
+
+        am_start.addEventListener("change", sequenceRule(am_start, am_end));
+        am_end  .addEventListener("change", sequenceRule(am_start, am_end));
+
+        pm_start.addEventListener("change", sequenceRule(pm_start, pm_end));
+        pm_end  .addEventListener("change", sequenceRule(pm_start, pm_end));
+
+        am_end  .addEventListener("change", lunchBreakRule);
+        pm_start.addEventListener("change", lunchBreakRule);
+
+        am_start.addEventListener("change", totalHoursRule);
+        am_end  .addEventListener("change", totalHoursRule);
+        pm_start.addEventListener("change", totalHoursRule);
+        pm_end  .addEventListener("change", totalHoursRule);
+
+    </script>
+
+</main></body>
+</html>
