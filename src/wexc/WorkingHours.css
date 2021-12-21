@@ -65,6 +65,7 @@ output {
 
 .darkTheme {
     filter: invert(85%) hue-rotate(180deg);
+    background-color: black;
 }
 
 em {

@@ -8,6 +8,7 @@ const DayModel = () => {
     const am_end   = Attribute(12 * 60);
     const pm_start = Attribute(13 * 60);
     const pm_end   = Attribute(17 * 60);
+
     const minMaxValues = mins => Math.max( 0, (Math.min(mins, 24 * 60)));
     [am_start, am_end, pm_start, pm_end].forEach( attr => attr.setConverter(minMaxValues));
     return { am_start, am_end, pm_start, pm_end };

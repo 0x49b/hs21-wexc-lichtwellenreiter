@@ -1,5 +1,5 @@
 
-import { projectDay } from "./simpleDayProjector.js"
+import { projectDay } from "./wexcProjector.js"
 // todo: the string above  ^^^^^^^^^^^^^^^^^^^^^^^^^   is the only thing that you are allowed to change !
 // Note that in particular, controller (and thus model), business rules, and existing tests are not allowed to change.
 
