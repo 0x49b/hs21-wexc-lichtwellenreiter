@@ -1,8 +1,5 @@
 export {projectDay}
 
-// Context
-let cx;
-
 // Colors
 let lightColor = '#ADCEFF';
 let darkColor = '#4485E8';
@@ -15,32 +12,6 @@ let clockFaceShadow = '#a2a2a2';
 let clockFaceStrokeStyleBold = '#000000';
 let clockFaceStrokeStyleThin = '#6D6D6D';
 let middlePointColor = '#606060';
-
-// Positions & Sizes
-let centerX = 300;
-let centerY = 300;
-
-let outerArcWidth = 55;
-let handleWidth = 5;
-let handleLengthExtension = 8;
-let radius = 0;
-
-const mousePosition = {x: 0, y: 0};
-
-let tolerance = 10;
-const nullvector = {
-    x: 0,
-    y: 0
-}
-let handles = [];
-let clickableHours = [];
-
-let selectedTimeWithHandle = {
-    startHour: null,
-    startMinute: null,
-    endHour: null,
-    endMinute: null
-}
 
 const LabelTypes = {
     HOUR: "Hour",
@@ -62,32 +33,44 @@ const Observable = value => {
     }
 };
 
-// states
-let darkMode = Observable(false);
-let disabled = Observable(false);
-let invalid = Observable(false);
+const createClock = (dayController, canvasId) => {
+    // states
+    let darkMode = Observable(false);
+    let disabled = Observable(false);
+    let invalid = Observable(false);
 
+    // Positions & Sizes
+    let outerArcWidth = 55;
+    let handleWidth = 5;
+    let handleLengthExtension = 8;
+    let tolerance = 10;
 
-const projectDay = (dayController, root) => {
-    // create view
+    const mousePosition = {x: 0, y: 0};
+    const nullvector = {x: 0, y: 0}
+
+    let handles = [];
+    let clickableHours = [];
+    
+    let selectedTimeWithHandle = {
+        startHour: null,
+        startMinute: null,
+        endHour: null,
+        endMinute: null
+    }
 
     const clock = document.createElement('canvas');
-    clock.id = "canvas";
+    clock.id = canvasId;
     clock.width = 600;
     clock.height = 600;
     clock.style.backgroundColor = '#E5E5E5';
     clock.style.borderRadius = '5%';
     clock.style.fontFamily = 'Roboto';
 
-    cx = clock.getContext("2d");
-    centerX = clock.width / 2;
-    centerY = clock.height / 2;
-    radius = clock.width / 2 - outerArcWidth - 10;
+    let cx = clock.getContext("2d");
+    let centerX = clock.width / 2;
+    let centerY = clock.height / 2;
+    let radius = clock.width / 2 - outerArcWidth - 10;
     nullvector.x = clock.width / 2;
-
-
-
-
 
     clock.addEventListener("mouseup", _ => {
         // ignore all interaction if disabled
@@ -100,6 +83,7 @@ const projectDay = (dayController, root) => {
             // second click on hourlabel -> set endHour + show handle
             selectedTimeWithHandle.endHour = mouseOnHour(mousePosition)
             handles.push(new Handle("startMinute", clock.width / 2, 50, true, 2 * Math.PI, 200))
+            console.log(handles)
         } else if (handles.length === 1 && downHandle != null) {
             // first handle set -> show second handle
             handles.push(new Handle("endMinute", clock.width / 2, 50, false, 2 * Math.PI, 200))
@@ -123,11 +107,12 @@ const projectDay = (dayController, root) => {
         // update MousePosition
         mousePosition.x = e.clientX;
         mousePosition.y = e.clientY;
+        const positionOnCanvas = getMousePosOnCanvas(mousePosition)
 
         if (downHandle != null) {
             // calculate angle to mouse position
-            let delta_x = mousePosition.x - centerX
-            let delta_y = centerY - mousePosition.y
+            let delta_x = positionOnCanvas.x - centerX
+            let delta_y = centerY - positionOnCanvas.y
 
             let angle = Math.atan2(delta_x, delta_y)
             angle = angle <= 0 ? Math.PI * 2 + angle : angle; // convert negativ to positiv angle
@@ -188,7 +173,6 @@ const projectDay = (dayController, root) => {
         };
     }
 
-
     function Handle(name, x, y, isStartHandle, angle, length) {
         this.name = name;
         this.ex = x;
@@ -199,16 +183,15 @@ const projectDay = (dayController, root) => {
         this.length = length;
     }
 
-    Object.prototype.drawHandle = function () {
+    const drawHandle = (handle) => {
         cx.beginPath();
         cx.lineWidth = handleWidth;
-        cx.strokeStyle = this.isStartHandle ? greenColor : redColor;
-        cx.moveTo(this.mx, this.my);
-        cx.lineTo(this.ex, this.ey);
+        cx.strokeStyle = handle.isStartHandle ? greenColor : redColor;
+        cx.moveTo(handle.mx, handle.my);
+        cx.lineTo(handle.ex, handle.ey);
         cx.stroke();
         cx.closePath();
     }
-
 
     const mouseNearHandle = (line, x, y) => {
         const lerp = (a, b, x) => (a + x * (b - a));
@@ -252,14 +235,16 @@ const projectDay = (dayController, root) => {
         // ignore all interaction if disabled
         if (disabled.getValue()) return;
 
+        // update MousePosition
         mousePosition.x = e.clientX;
         mousePosition.y = e.clientY;
+        const positionOnCanvas = getMousePosOnCanvas(mousePosition)
 
         // Check if we are on a line and handle the line
         handles.forEach(h => {
-            let linepoint = mouseNearHandle(h, mousePosition.x, mousePosition.y);
-            let dx = mousePosition.x - linepoint.x;
-            let dy = mousePosition.y - linepoint.y;
+            let linepoint = mouseNearHandle(h, positionOnCanvas.x, positionOnCanvas.y);
+            let dx = positionOnCanvas.x - linepoint.x;
+            let dy = positionOnCanvas.y - linepoint.y;
             let distance = Math.abs(Math.sqrt(dx * dx + dy * dy));
             if (distance < tolerance) {
                 downHandle = h;
@@ -272,11 +257,9 @@ const projectDay = (dayController, root) => {
     const dotProduct = (ax, ay, bx, by) => ax * bx + ay * by
     const valueOfVector = (ax, ay) => Math.sqrt(ax ** 2 + ay ** 2);
 
-
     const calcLineAngle = handle => {
         return dotProduct(nullvector.x, nullvector.y, handle.ex, handle.ey) / (valueOfVector(nullvector.x, nullvector.y) * valueOfVector(handle.ex, handle.ey));
     }
-
 
     const none = (_) => false;
 
@@ -315,7 +298,7 @@ const projectDay = (dayController, root) => {
         drawHighlightLabels(startHour, startMinute, endHour, endMinute, isInSlot)
 
         handles.forEach(h => {
-            h.drawHandle()
+            drawHandle(h)
         })
 
         drawMiddlePoint();
@@ -358,9 +341,9 @@ const projectDay = (dayController, root) => {
             cx.translate(centerX, centerY);
             cx.fillStyle = color;
             if (isInSlot(i)) {
-                cx.font = '400 ' + fontSize + 'px robotobold';
+                cx.font = '700 ' + fontSize + 'px Roboto';
             } else {
-                cx.font = '400 ' + fontSize + 'px robotolight';
+                cx.font = '300 ' + fontSize + 'px Roboto';
             }
             let x = labelRadius * Math.cos(getRadians(labelAngle + (angleBetweenLabels * i))) + xCorrex;
             let y = labelRadius * Math.sin(getRadians(labelAngle + (angleBetweenLabels * i))) + yCorrex;
@@ -371,7 +354,7 @@ const projectDay = (dayController, root) => {
             }
 
             let text = (labelText.toString().length === 1) ? ` ${labelText}` : labelText;
-            cx.fillText(text, x, y);// Text
+            cx.fillText(text, x, y); // Text
             cx.restore();
 
             labelText += increment;
@@ -395,7 +378,7 @@ const projectDay = (dayController, root) => {
         // Weisse Scheibe
         cx.save();
         cx.fillStyle = clockFaceFill;
-        cx.translate(300, 300);
+        cx.translate(centerX, centerY);
         cx.shadowColor = clockFaceShadow;
         cx.shadowBlur = 10;
         cx.shadowOffsetY = 0;
@@ -408,7 +391,7 @@ const projectDay = (dayController, root) => {
         // Stroke - Skala
         for (let i = 0; i < 60; i++) {
             cx.save();
-            cx.translate(300, 300);
+            cx.translate(centerX, centerY);
             cx.rotate(i * (Math.PI / 30));
             cx.beginPath();
             cx.moveTo(0, -190);
@@ -431,7 +414,7 @@ const projectDay = (dayController, root) => {
         // Punkt in der Mitte
         cx.fillStyle = middlePointColor;
         cx.save();
-        cx.translate(300, 300);
+        cx.translate(centerX, centerY);
         cx.beginPath();
         cx.arc(0, 0, 6, 0, Math.PI * 2);
         cx.closePath();
@@ -618,7 +601,17 @@ invalid.onChange(() => {
 
     start();
 
-    root.appendChild(clock);
+    return clock
+}
+
+
+const projectDay = (dayController, root) => {
+    // create view
+    const amClock = createClock(dayController, "amClockCanvas")
+    root.appendChild(amClock);
+
+    const pmClock = createClock(dayController, "pmClockCanvas")
+    root.appendChild(pmClock);
 };
 
 
