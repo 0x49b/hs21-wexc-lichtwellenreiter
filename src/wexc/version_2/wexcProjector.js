@@ -319,7 +319,7 @@ const createClock = (dayController, canvasId) => {
                 labelRadius = 155;
                 fontSize = 18;
                 numOfLabels = 12;
-                increment = 5v
+                increment = 5;
         }
 
         if (typeOfLabel === LabelTypes.HOUR_HIGHLIGHT) color = whiteColor;
