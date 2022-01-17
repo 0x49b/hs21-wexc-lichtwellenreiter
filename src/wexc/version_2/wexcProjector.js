@@ -1,24 +1,28 @@
 export {projectDay}
 
 // colors
-const lightColor = '#ADCEFF';
-const darkColor = '#4485E8';
-const greenColor = '#90F0B6';
-const redColor = '#F09090';
-const invalidColor = '#ff6262';
-const validatingColor = '#ffeca5';
-const validColor = '#2379d3';
-const whiteColor = '#FFF';
-const greyColor = '#6D6D6D';
-const greyColorAlternative = '#d3d3d3';
-const clockFaceFill = '#ffffff';
-const clockFaceShadow = '#a2a2a2';
-const clockFaceStrokeStyleBold = '#000000';
-const clockFaceStrokeStyleThin = '#6D6D6D';
-const middlePointColor = '#606060';
+let lightColor = '#ADCEFF';
+let darkColor = '#4485E8';
+let greenColor = '#90F0B6';
+let redColor = '#F09090';
+let invalidColor = '#ff6262';
+let invalidColorSecondary = '#ffbfbf';
+let validatingColor = '#ffeca5';
+let validColor = '#2379d3';
+let whiteColor = '#FFF';
+let greyColor = '#6D6D6D';
+let greyColorAlternative = '#d3d3d3';
+let clockFaceFill = '#ffffff';
+let canvasColor = '#f6f6f6';
+let clockFaceShadow = '#a2a2a2';
+let clockFaceStrokeStyleBold = '#000000';
+let clockFaceStrokeStyleThin = '#6D6D6D';
+let middlePointColor = '#606060';
 
 // preferences
 const TOLERANCE = 20;
+const minTime = "04:00";
+const maxTime = "22:00";
 
 // sizes
 const outerArcWidth = 55;
@@ -95,8 +99,8 @@ const createClock = (dayController, canvasId, root) => {
     clock.id = canvasId;
     clock.width = 600;
     clock.height = 600;
-    clock.style.backgroundColor = '#E5E5E5';
-    clock.style.borderRadius = '5%';
+    clock.style.backgroundColor = canvasColor;
+    clock.style.borderRadius = '2%';
     clock.style.fontFamily = 'Roboto';
 
     let cx = clock.getContext("2d");
@@ -137,6 +141,8 @@ const createClock = (dayController, canvasId, root) => {
             start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
             handleStates.startHour = true;
         }
+
+        checkValidity();
 
         // handle handle-moves
         if (downHandle != null) {
@@ -211,38 +217,60 @@ const createClock = (dayController, canvasId, root) => {
         }
     });
 
-// TODO
-    // const resetColors = () => {
-    //     const bdy = document.querySelector('body');
-    //     const isDisabled = disabled.getValue();
-    //     if (darkMode.getValue()) {
-    //         bdy.dataset.theme = "dark";
-    //         lightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';
-    //         darkColor = isDisabled ? '#828282' : '#005AAD';
-    //         greenColor = isDisabled ? '#828282' : '#90F0B6';
-    //         redColor = isDisabled ? '#828282' : '#F09090';
-    //         whiteColor = '#FFF';
-    //         greyColor = '#DDDDDD';
-    //         clockFaceFill = '#575757';
-    //         clockFaceShadow = invalid.getValue() ? '#FF0000' : '#575757';
-    //         clockFaceStrokeStyleBold = '#FCFCFC';
-    //         clockFaceStrokeStyleThin = '#EDEDED';
-    //         middlePointColor = '#E1E1E1';
-    //     } else {
-    //         bdy.dataset.theme = "light";
-    //         lightColor = isDisabled ? '#D8D8D8' : '#ADCEFF';
-    //         darkColor = isDisabled ? '#A3A3A3' : '#4485E8';
-    //         greenColor = isDisabled ? '#A3A3A3' : '#90F0B6';
-    //         redColor = isDisabled ? '#A3A3A3' : '#F09090';
-    //         whiteColor = '#FFF';
-    //         greyColor = '#6D6D6D';
-    //         clockFaceFill = '#FFFFFF';
-    //         clockFaceShadow = invalid.getValue() ? '#FF0000' : '#a2a2a2';
-    //         clockFaceStrokeStyleBold = '#000000';
-    //         clockFaceStrokeStyleThin = '#6D6D6D';
-    //         middlePointColor = '#606060';
-    //     }
-    // }
+    const resetColors = () => {
+        const bdy = document.querySelector('body');
+        const isDisabled = disabled.getValue();
+        const isReadOnly = readOnly.getValue();
+        if (darkMode.getValue()) {
+            bdy.dataset.theme = "daletlightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';";
+            lightColor = isDisabled || isReadOnly  ? '#646464' : '#718394';
+            darkColor = isDisabled || isReadOnly ? '#828282' : '#51adff';
+            greenColor = isDisabled || isReadOnly  ? '#828282' : '#0d642b';
+            redColor = isDisabled || isReadOnly  ? '#828282' : '#b75151';
+            invalidColor = isDisabled || isReadOnly  ? '#a1a1a1' : '#ee3f3f';
+            invalidColorSecondary = isDisabled || isReadOnly  ? '#d0d0d0' : '#e07e7e';
+            whiteColor = '#000';
+            greyColor = '#DDDDDD';
+            clockFaceFill = '#575757';
+            clockFaceShadow = invalid.getValue() ? invalidColor : '#575757';
+            clockFaceStrokeStyleBold = '#FCFCFC';
+            clockFaceStrokeStyleThin = '#EDEDED';
+            middlePointColor = '#E1E1E1';
+        } else {
+            bdy.dataset.theme = "light";
+            lightColor = isDisabled || isReadOnly  ? '#D8D8D8' : '#ADCEFF';
+            darkColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#4485E8';
+            greenColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#90F0B6';
+            redColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#F09090';
+            invalidColor = isDisabled || isReadOnly  ? greyColor : '#ff6262';
+            invalidColorSecondary = isDisabled || isReadOnly  ? greyColorAlternative : '#ffbfbf';
+            whiteColor = '#FFF';
+            greyColor = '#6D6D6D';
+            clockFaceFill = '#FFFFFF';
+            clockFaceShadow = invalid.getValue() ? invalidColor : '#a2a2a2';
+            clockFaceStrokeStyleBold = '#000000';
+            clockFaceStrokeStyleThin = '#6D6D6D';
+            middlePointColor = '#606060';
+        }
+    }
+
+    const checkValidity = _ => {
+        const minMinutes = timeStringToMinutes(minTime);
+        const maxMinutes = timeStringToMinutes(maxTime);
+        const startMinutes = timeStringToMinutes(start_time.value);
+        const endMinutes = timeStringToMinutes(end_time.value);
+
+        if (minMinutes > startMinutes) {
+            invalid.setValue(true);
+            return;
+        }
+        if (maxMinutes < endMinutes) {
+            invalid.setValue(true);
+            return;
+        }
+
+        invalid.setValue(false);
+    }
 
     const updateHandle = (handleType) => {
         let handle = null;
@@ -289,7 +317,7 @@ const createClock = (dayController, canvasId, root) => {
     const drawHandle = (handle) => {
         cx.beginPath();
         cx.lineWidth = handleWidth;
-        cx.strokeStyle = handle.isStartHandle ? greenColor : redColor;
+        cx.strokeStyle = handle.isStartHandle ? greyColor : darkColor;
         cx.moveTo(handle.mx, handle.my);
         cx.lineTo(handle.ex, handle.ey);
         cx.stroke();
@@ -376,6 +404,7 @@ const createClock = (dayController, canvasId, root) => {
 
     const nextClock = () => {
         cx.clearRect(0, 0, clock.width, clock.height);
+        resetColors()
         drawClockFace();
 
         const startHour = timeStringToTime(start_time.value);
@@ -384,12 +413,10 @@ const createClock = (dayController, canvasId, root) => {
         const endMinute = timeStringToTime(end_time.value, true);
 
         const clockEditable = !(disabled.getValue() || readOnly.getValue());
-        const hoursArcColor = readOnly.getValue() || disabled.getValue() ? greyColor : darkColor;
-        const minutesArcColor = readOnly.getValue() || disabled.getValue() ? greyColorAlternative : lightColor;
 
-        drawOuterArc(startHour, startMinute, endHour, endMinute, minutesArcColor, clockEditable);
-        drawOuterArc(startHour, startMinute, endHour, endMinute, hoursArcColor, false, true);
-        drawInnerArc(startMinute, endMinute, minutesArcColor);
+        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, clockEditable);
+        drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
+        drawInnerArc(startMinute, endMinute, lightColor);
 
         let isInSlot = (hour) => {
             if (!startHour) return false;
@@ -479,11 +506,10 @@ const createClock = (dayController, canvasId, root) => {
     }
 
     const validationColor = _ => {
-        if ((!userInteractionFinished() && required.getValue())
-            || (!userInteractionFinished() && invalid.getValue())) {
-            return validatingColor;
-        } else if (invalid.getValue()) {
+        if (invalid.getValue()) {
             return invalidColor;
+        } else if (required.getValue() && !userInteractionFinished()) {
+            return validatingColor;
         } else {
             return required.getValue() ? validColor : "transparent";
         }
@@ -609,22 +635,67 @@ const createClock = (dayController, canvasId, root) => {
 
         let startAngle;
         let endAngle;
+        let startInvalidAngle = null;
+        let endInvalidAngle = null;
 
         if (fullHoursOnly) {
             let startFullHour = startMinute > 0 ? startHour + 1 : startHour;
-            startAngle = angleForTime(startFullHour, 0);
-            endAngle = angleForTime(endHour, 0);
-        } else {
-            startAngle = angleForTime(startHour, startMinute);
-            endAngle = angleForTime(endHour, endMinute);
-        }
 
-        drawArc(startAngle, endAngle, color, false);
+            // invalid time
+            if (timeStringToMinutes(stringToTimeString(startFullHour+ ":00")) < timeStringToMinutes(minTime)) {
+                startAngle = angleForTime(minTime.split(":").map(Number)[0], 0);
+                endAngle = angleForTime(endHour, 0);
+
+                startInvalidAngle = angleForTime(startFullHour, 0);
+                endInvalidAngle = angleForTime(minTime.split(":").map(Number)[0], 0);
+            } else if (timeStringToMinutes(stringToTimeString(endHour + ":00")) > timeStringToMinutes(maxTime)) {
+                startAngle = angleForTime(startFullHour, 0);
+                endAngle = angleForTime(maxTime.split(":").map(Number)[0], 0);
+
+                startInvalidAngle = angleForTime(maxTime.split(":").map(Number)[0], 0);
+                endInvalidAngle = angleForTime(endHour, 0);
+            } else {
+                // valid time
+                startAngle = angleForTime(startFullHour, 0);
+                endAngle = angleForTime(endHour, 0);
+            }
+
+            drawArc(startAngle, endAngle, color, false);
+            if (startInvalidAngle !== null) drawArc(startInvalidAngle, endInvalidAngle, invalidColor, false);
+
+        } else {
+
+            // invalid time
+            if (timeStringToMinutes(stringToTimeString(startHour + ":" + startMinute)) < timeStringToMinutes(minTime)) {
+                startAngle = angleForTime(minTime.split(":").map(Number)[0], minTime.split(":").map(Number)[1]);
+                endAngle = angleForTime(endHour, endMinute);
+
+                startInvalidAngle = angleForTime(startHour, startMinute);
+                endInvalidAngle = angleForTime(minTime.split(":").map(Number)[0], minTime.split(":").map(Number)[1]);
+            } else if (timeStringToMinutes(endHour + endMinute) > timeStringToMinutes(maxTime)) {
+                startAngle = angleForTime(startHour, startMinute);
+                endAngle = angleForTime(maxTime.split(":").map(Number)[0], maxTime.split(":").map(Number)[1]);
+
+                startInvalidAngle = angleForTime(maxTime.split(":").map(Number)[0], maxTime.split(":").map(Number)[1]);
+                endInvalidAngle = angleForTime(endHour, endMinute);
+            } else {
+                startAngle = angleForTime(startHour, startMinute);
+                endAngle = angleForTime(endHour, endMinute);
+            }
+
+            drawArc(startAngle, endAngle, color, false);
+            if (startInvalidAngle !== null) drawArc(startInvalidAngle, endInvalidAngle, invalidColorSecondary, false);
+        }
 
         if (drawLines) {
-            drawLine(startAngle, greenColor);
-            drawLine(endAngle, redColor);
+            const startInvalid = startInvalidAngle < startAngle;
+            const endInvalid = endInvalidAngle > endAngle;
+            startAngle = startInvalid ? startInvalidAngle : startAngle;
+            endAngle = endInvalid ? endInvalidAngle : endAngle;
+            drawLine(startAngle, startInvalid ? invalidColor : greyColor);
+            drawLine(endAngle, endInvalid ? invalidColor : darkColor);
         }
+
     }
 
     const drawInnerArc = (startMinute, endMinute, color) => {
@@ -689,29 +760,23 @@ const createClock = (dayController, canvasId, root) => {
         attributes: true
     });
 
-    // TODO remove
-    readOnly.onChange(_ => console.log("readonly: " + readOnly.getValue()))
-    required.onChange(_ => console.log("required: " + required.getValue()))
-    disabled.onChange(_ => console.log("disabled: " + disabled.getValue()))
-
-
-// // dark mode
-// darModeCB.onchange = _ => darkMode.setValue(!darkMode.getValue());
-// darkMode.onChange(() => {
-//     resetColors();
-// });
-//
-// // disabled
-// disabledCB.onchange = _ => disabled.setValue(!disabled.getValue());
-// disabled.onChange(() => {
-//     resetColors();
-// });
-//
-// // invalid
-// invalidCB.onchange = _ => invalid.setValue(!invalid.getValue());
-// invalid.onChange(() => {
-//     resetColors();
-// });
+    const doc = document.querySelector('html');
+    let prevClassState = doc.classList.contains('darkTheme');
+    const observer2 = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if(mutation.attributeName === "class"){
+                const currentClassState = mutation.target.classList.contains('darkTheme');
+                if(prevClassState !== currentClassState)    {
+                    prevClassState = currentClassState;
+                    if(currentClassState)
+                        darkMode.setValue(true)
+                    else
+                        darkMode.setValue(false)
+                }
+            }
+        });
+    });
+    observer2.observe(doc, {attributes: true});
 
     start();
 
@@ -723,6 +788,10 @@ const createClock = (dayController, canvasId, root) => {
             console.log("setStart by controller: " + newValue + " " + userInteractionFinished())
             if (userInteractionFinished()) {
                 start_time.value = newValue;
+                if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
+                    end_time.value = stringToTimeString((
+                        end_time.value.split(":").map(Number)[0] + 2) + ":00")
+                }
                 updateHandle(HandleType.START_MINUTE);
             }
         },
@@ -730,6 +799,10 @@ const createClock = (dayController, canvasId, root) => {
             console.log("setEnd by controller: " + newValue + " " + userInteractionFinished())
             if (userInteractionFinished()) {
                 end_time.value = newValue;
+                if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
+                    end_time.value = stringToTimeString((
+                        end_time.value.split(":").map(Number)[0] + 2) + ":00")
+                }
                 updateHandle(HandleType.END_MINUTE);
             }
         },
