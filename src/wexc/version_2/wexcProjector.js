@@ -682,8 +682,8 @@ const createClock = (dayController, canvasId, root) => {
         }
 
         if (drawLines) {
-            const startInvalid = startInvalidAngle < startAngle;
-            const endInvalid = endInvalidAngle > endAngle;
+            const startInvalid = startInvalidAngle != null && startInvalidAngle < startAngle;
+            const endInvalid = endInvalidAngle !== null && endInvalidAngle > endAngle;
             startAngle = startInvalid ? startInvalidAngle : startAngle;
             endAngle = endInvalid ? endInvalidAngle : endAngle;
             drawLine(startAngle, startInvalid ? invalidColor : greyColor);
