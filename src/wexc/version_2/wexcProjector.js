@@ -5,6 +5,9 @@ const lightColor = '#ADCEFF';
 const darkColor = '#4485E8';
 const greenColor = '#90F0B6';
 const redColor = '#F09090';
+const invalidColor = '#ff6262';
+const validatingColor = '#ffeca5';
+const validColor = '#2379d3';
 const whiteColor = '#FFF';
 const greyColor = '#6D6D6D';
 const greyColorAlternative = '#d3d3d3';
@@ -155,12 +158,12 @@ const createClock = (dayController, canvasId, root) => {
                         // no handle down anymore
                         downHandle = null;
 
-                        if (!timeSetInitially){
+                        if (!timeSetInitially) {
                             console.log("startlistener fired")
-                            console.log(handleStates.startHour+", "
-                                + handleStates.startMinute+", "
-                                + handleStates.endHour+", "
-                                + handleStates.endMinute+", "
+                            console.log(handleStates.startHour + ", "
+                                + handleStates.startMinute + ", "
+                                + handleStates.endHour + ", "
+                                + handleStates.endMinute + ", "
                                 + (downHandle === null))
                             startListeners.forEach(listener => listener(start_time.value));
                             timeSetInitially = true;
@@ -246,7 +249,7 @@ const createClock = (dayController, canvasId, root) => {
         let minutes = 0;
 
         // get current value for defined HandleType
-        switch (handleType){
+        switch (handleType) {
             case HandleType.START_MINUTE:
                 handle = handles.find(elm => elm.name === HandleType.START_MINUTE);
                 minutes = timeStringToTime(start_time.value, true)
@@ -407,7 +410,7 @@ const createClock = (dayController, canvasId, root) => {
                 drawHandle(h);
             });
         }
-        
+
         drawMiddlePoint();
     }
 
@@ -475,10 +478,23 @@ const createClock = (dayController, canvasId, root) => {
 
     }
 
+    const validationColor = _ => {
+        if ((!userInteractionFinished() && required.getValue())
+            || (!userInteractionFinished() && invalid.getValue())) {
+            return validatingColor;
+        } else if (invalid.getValue()) {
+            return invalidColor;
+        } else {
+            return required.getValue() ? validColor : "transparent";
+        }
+    }
+
     const drawClockFace = () => {
         // Weisse Scheibe
         cx.save();
         cx.fillStyle = clockFaceFill;
+        cx.strokeStyle = validationColor();
+        cx.lineWidth = 4;
         cx.translate(centerX, centerY);
         cx.shadowColor = clockFaceShadow;
         cx.shadowBlur = 10;
@@ -486,6 +502,7 @@ const createClock = (dayController, canvasId, root) => {
         cx.beginPath();
         cx.arc(0, 0, 270, 0, Math.PI * 2);
         cx.fill();
+        cx.stroke();
         cx.closePath();
         cx.restore();
 
@@ -673,9 +690,9 @@ const createClock = (dayController, canvasId, root) => {
     });
 
     // TODO remove
-    readOnly.onChange(_ => console.log("readonly: "+readOnly.getValue()))
-    required.onChange(_ => console.log("required: "+required.getValue()))
-    disabled.onChange(_ => console.log("disabled: "+disabled.getValue()))
+    readOnly.onChange(_ => console.log("readonly: " + readOnly.getValue()))
+    required.onChange(_ => console.log("required: " + required.getValue()))
+    disabled.onChange(_ => console.log("disabled: " + disabled.getValue()))
 
 
 // // dark mode
@@ -700,22 +717,25 @@ const createClock = (dayController, canvasId, root) => {
 
     return {
         clock: clock,
+        start_field: start_time,
+        end_field: end_time,
         setStart: newValue => {
-            console.log("setStart by controller: " + newValue+" "+userInteractionFinished())
-            if (userInteractionFinished()){
+            console.log("setStart by controller: " + newValue + " " + userInteractionFinished())
+            if (userInteractionFinished()) {
                 start_time.value = newValue;
                 updateHandle(HandleType.START_MINUTE);
             }
         },
         setEnd: newValue => {
-            console.log("setEnd by controller: " + newValue+" "+userInteractionFinished())
-            if (userInteractionFinished()){
+            console.log("setEnd by controller: " + newValue + " " + userInteractionFinished())
+            if (userInteractionFinished()) {
                 end_time.value = newValue;
                 updateHandle(HandleType.END_MINUTE);
             }
         },
         startOnChange: callback => startListeners.push(callback),
         endOnChange: callback => endListeners.push(callback),
+        setInvalid: isInvalid => invalid.setValue(isInvalid)
     };
 }
 
@@ -726,22 +746,22 @@ const projectDay = (dayController, root) => {
 
     // view binding: change in the view (by the user) -> change in the model
     amClock.startOnChange(newTime => {
-        console.log("AM START interaction finished – new val:"+newTime)
-            dayController.setAmStart(timeStringToMinutes(newTime));
+        console.log("AM START interaction finished – new val:" + newTime)
+        dayController.setAmStart(timeStringToMinutes(newTime));
     });
 
     amClock.endOnChange(newTime => {
-        console.log("AM END interaction finished – new val:"+newTime)
-            dayController.setAmEnd(timeStringToMinutes(newTime));
-        });
+        console.log("AM END interaction finished – new val:" + newTime)
+        dayController.setAmEnd(timeStringToMinutes(newTime));
+    });
 
     pmClock.startOnChange(newTime => {
-        console.log("PM START interaction finished – new val:"+newTime)
+        console.log("PM START interaction finished – new val:" + newTime)
         dayController.setPmStart(timeStringToMinutes(newTime));
     });
 
     pmClock.endOnChange(newTime => {
-        console.log("PM END interaction finished – new val:"+newTime)
+        console.log("PM END interaction finished – new val:" + newTime)
         dayController.setPmEnd(timeStringToMinutes(newTime));
     });
 
@@ -766,13 +786,14 @@ const projectDay = (dayController, root) => {
         pmClock.setEnd(newTime);
     });
 
-    // const validVisualizer = element => valid => valid
-    //     ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
-    //     : element.setCustomValidity("invalid");
-    // dayController.onAmStartValidChanged(validVisualizer(amStart));
-    // dayController.onAmEndValidChanged(validVisualizer(amEnd));
-    // dayController.onPmStartValidChanged(validVisualizer(pmStart));
-    // dayController.onPmEndValidChanged(validVisualizer(pmEnd));
+    const validVisualizer = clock => valid => valid
+        ? clock.setInvalid(false) // this is one way of dealing with validity in the DOM
+        : clock.setInvalid(true);
+
+    dayController.onAmStartValidChanged(validVisualizer(amClock));
+    dayController.onAmEndValidChanged(validVisualizer(amClock));
+    dayController.onPmStartValidChanged(validVisualizer(pmClock));
+    dayController.onPmEndValidChanged(validVisualizer(pmClock));
 
     // add clocks to DOM
     root.appendChild(amClock.clock);
