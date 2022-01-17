@@ -46,7 +46,7 @@ const createClock = (dayController, canvasId) => {
     let tolerance = 10;
 
     const mousePosition = {x: 0, y: 0};
-    const nullvector = {x: 0, y: 0};
+    const nullVector = {x: 0, y: 0};
 
     let handles = [];
     let clickableHours = [];
@@ -57,6 +57,15 @@ const createClock = (dayController, canvasId) => {
         endHour: false,
         endMinute: false
     }
+
+    let timeSetInitially = false;
+    let userInteractionFinished = _ => (
+        handleStates.startHour
+        && handleStates.startMinute
+        && handleStates.endHour
+        && handleStates.endMinute
+        && downHandle === null
+    )
 
     // setup canvas
     const clock = document.createElement('canvas');
@@ -71,13 +80,17 @@ const createClock = (dayController, canvasId) => {
     let centerX = clock.width / 2;
     let centerY = clock.height / 2;
     let radius = clock.width / 2 - outerArcWidth - 10;
-    nullvector.x = clock.width / 2;
+    nullVector.x = clock.width / 2;
 
     // hidden input field representing time and states (e.g. 'read only')
     const start_time = hiddenInput('start');
     const end_time = hiddenInput('end');
     [start_time, end_time].forEach(input => clock.appendChild(input));
     [start_time, end_time].forEach(input => input.value = "00:00");
+
+    // will be fired (!only) if interaction ended
+    const startListeners = [];
+    const endListeners = [];
 
     // handle interactions
     clock.addEventListener("mouseup", _ => {
@@ -87,15 +100,12 @@ const createClock = (dayController, canvasId) => {
         if (handleStates.startHour === false && mouseOnHour(mousePosition) >= 0) {
             // first click on hourlabel -> set startHour
             start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
-            console.log("detected mouse click:" + stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true)));
             handleStates.startHour = true;
-            console.log("start_time: "+start_time.value)
         } else if (handleStates.endHour === false && mouseOnHour(mousePosition) >= 0) {
             // second click on hourlabel -> set endHour + show handle
             end_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(end_time, true));
             handleStates.endHour = true;
             handles.push(new Handle("startMinute", clock.width / 2, 50, true, 2 * Math.PI, 200));
-            console.log("start_time: "+start_time.value)
         } else if (handles.length === 1 && downHandle != null) {
             // first handle set -> show second handle
             handles.push(new Handle("endMinute", clock.width / 2, 50, false, 2 * Math.PI, 200));
@@ -103,12 +113,43 @@ const createClock = (dayController, canvasId) => {
             // click on hourlabel && no handle selected -> reset
             resetTime();
             start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
+            handleStates.startHour = true;
         }
 
-        // set minutes according to handle position
+        // handle handle-moves
         if (downHandle != null) {
+            // set minutes according to handle position
             downHandle.angle = calcLineAngle(downHandle);
-            downHandle = null;
+
+            // fire event for new time (& interaction finished)
+            if (handles.length === 2) {
+                switch (downHandle.name) {
+                    case "startMinute":
+                        // no handle down anymore
+                        downHandle = null;
+
+                        if (timeSetInitially) {
+                            startListeners.forEach(listener => listener(start_time.value));
+                        }
+                        break;
+                    case "endMinute":
+                        // no handle down anymore
+                        downHandle = null;
+
+                        if (!timeSetInitially){
+                            console.log("startlistener fired")
+                            console.log(handleStates.startHour+", "
+                                + handleStates.startMinute+", "
+                                + handleStates.endHour+", "
+                                + handleStates.endMinute+", "
+                                + (downHandle === null))
+                            startListeners.forEach(listener => listener(start_time.value));
+                            timeSetInitially = true;
+                        }
+                        endListeners.forEach(listener => listener(end_time.value));
+                        break;
+                }
+            }
         }
     });
 
@@ -242,14 +283,14 @@ const createClock = (dayController, canvasId) => {
     function resetTime() {
         start_time.value = "00:00";
         end_time.value = "00:00";
+
         handleStates.startHour = false;
         handleStates.startMinute = false;
         handleStates.endHour = false;
         handleStates.endMinute = false;
-        // selectedTimeWithHandle.startHour.setValue(null);
-        // selectedTimeWithHandle.startMinute.setValue(null);
-        // selectedTimeWithHandle.endHour.setValue(null);
-        // selectedTimeWithHandle.endMinute.setValue(null);
+
+        timeSetInitially = false;
+
         handles = [];
     }
 
@@ -279,7 +320,7 @@ const createClock = (dayController, canvasId) => {
     const valueOfVector = (ax, ay) => Math.sqrt(ax ** 2 + ay ** 2);
 
     const calcLineAngle = handle => {
-        return dotProduct(nullvector.x, nullvector.y, handle.ex, handle.ey) / (valueOfVector(nullvector.x, nullvector.y) * valueOfVector(handle.ex, handle.ey));
+        return dotProduct(nullVector.x, nullVector.y, handle.ex, handle.ey) / (valueOfVector(nullVector.x, nullVector.y) * valueOfVector(handle.ex, handle.ey));
     }
 
     const none = (_) => false;
@@ -295,24 +336,10 @@ const createClock = (dayController, canvasId) => {
         cx.clearRect(0, 0, clock.width, clock.height);
         drawClockFace();
 
-        // console.log("start_time: "+start_time.value)
-
-        // console.log({
-        //     start: start_time.value,
-        //     end: end_time.value,
-        // })
-
         const startHour = timeStringToTime(start_time.value);
         const startMinute = timeStringToTime(start_time.value, true);
         const endHour = timeStringToTime(end_time.value);
         const endMinute = timeStringToTime(end_time.value, true);
-
-        // console.log({
-        //     startHour: timeStringToTime(start_time.value),
-        //     startMinute: timeStringToTime(start_time.value, true),
-        //     endHour: timeStringToTime(end_time.value),
-        //     endMinute: timeStringToTime(end_time.value, true)
-        // })
 
         drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, true);
         drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
@@ -612,69 +639,86 @@ const createClock = (dayController, canvasId) => {
 //     resetColors();
 // });
 
-    // bindings with model
-    // const start_hour = selectedTimeWithHandle.startHour;
-    // const start_minute = selectedTimeWithHandle.startMinute;
-    // const end_hour = selectedTimeWithHandle.endHour;
-    // const end_minute = selectedTimeWithHandle.endMinute;
-
-    // view binding: change in the view (by the user) -> change in the model
-    // start_time.onchange = event => dayController.setAmStart(timeStringToMinutes(event.target.value));
-    // end_time  .onchange = event => dayController.setAmEnd  (timeStringToMinutes(event.target.value));
-
-    // data binding: how to visualize changes in the model
-    // dayController.onAmStartChanged( mins => start_time.value = totalMinutesToTimeString(mins));
-    // dayController.onAmEndChanged  ( mins => end_time  .value = totalMinutesToTimeString(mins));
-
-    const validVisualizer = element => valid => valid
-        ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
-        : element.setCustomValidity("invalid");
-    // dayController.onAmStartValidChanged( validVisualizer(start_time));
-    // dayController.onAmEndValidChanged  ( validVisualizer(end_time  ));
-
-
-
-    // view binding: change in the view (by the user) -> change in the model
-    // start_hour.onchange = () => dayController.setAmStart(timeStringToMinutes(start_hour+':'+start_minute));
-    // start_minute.onchange = () => dayController.setAmStart(timeStringToMinutes(start_hour+':'+start_minute));
-    // end_hour.onchange = () => dayController.setAmEnd(timeStringToMinutes(end_hour+':'+end_minute));
-    // end_minute.onchange = () => dayController.setAmEnd(timeStringToMinutes(end_hour+':'+end_minute));
-
-    //
-    // // data binding: how to visualize changes in the model
-    // dayController.onAmStartChanged(mins => {
-    //     start_hour.setValue(totalMinutesToTime(mins));
-    //     start_minute.setValue(totalMinutesToTime(mins, true));
-    //     console.log('controller set time')
-    // })
-    // dayController.onAmEndChanged(mins => {
-    //     end_hour.setValue(totalMinutesToTime(mins));
-    //     end_minute.setValue(totalMinutesToTime(mins, true));
-    //     console.log('controller set time')
-    // });
-    //
-    // const validVisualizer = element => valid => valid
-    //    ? console.log('valid')// this is one way of dealing with validity in the DOM
-    //    : console.log('invalid');
-    //
-    // dayController.onAmStartValidChanged(validVisualizer(start_hour));
-    // dayController.onAmEndValidChanged(validVisualizer(end_hour));
-
     start();
 
-    return clock;
+    return {
+        clock: clock,
+        setStart: newValue => {
+            console.log("setStart by controller: " + newValue+" "+userInteractionFinished())
+            if (userInteractionFinished()){
+                start_time.value = newValue;
+            }
+        },
+        setEnd: newValue => {
+            console.log("setEnd by controller: " + newValue+" "+userInteractionFinished())
+            if (userInteractionFinished()){
+                end_time.value = newValue;
+            }
+        },
+        startOnChange: callback => startListeners.push(callback),
+        endOnChange: callback => endListeners.push(callback),
+    };
 }
 
-
 const projectDay = (dayController, root) => {
-    // create view
+    // generate clocks
     const amClock = createClock(dayController, "amClockCanvas");
-    root.appendChild(amClock);
+    const pmClock = createClock(dayController, "pmClockCanvas");
 
-    // const pmClock = createClock(dayController, "pmClockCanvas");
-    // root.appendChild(pmClock);
+    // view binding: change in the view (by the user) -> change in the model
+    amClock.startOnChange(newTime => {
+        console.log("AM START interaction finished – new val:"+newTime)
+            dayController.setAmStart(timeStringToMinutes(newTime));
+    });
+
+    amClock.endOnChange(newTime => {
+        console.log("AM END interaction finished – new val:"+newTime)
+            dayController.setAmEnd(timeStringToMinutes(newTime));
+        });
+
+    pmClock.startOnChange(newTime => {
+        console.log("PM START interaction finished – new val:"+newTime)
+        dayController.setPmStart(timeStringToMinutes(newTime));
+    });
+
+    pmClock.endOnChange(newTime => {
+        console.log("PM END interaction finished – new val:"+newTime)
+        dayController.setPmEnd(timeStringToMinutes(newTime));
+    });
+
+    // data binding: how to visualize changes in the model
+    dayController.onAmStartChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        amClock.setStart(newTime);
+    });
+
+    dayController.onAmEndChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        amClock.setEnd(newTime);
+    });
+
+    dayController.onPmStartChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        pmClock.setStart(newTime);
+    });
+
+    dayController.onPmEndChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        pmClock.setEnd(newTime);
+    });
+
+    // const validVisualizer = element => valid => valid
+    //     ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
+    //     : element.setCustomValidity("invalid");
+    // dayController.onAmStartValidChanged(validVisualizer(amStart));
+    // dayController.onAmEndValidChanged(validVisualizer(amEnd));
+    // dayController.onPmStartValidChanged(validVisualizer(pmStart));
+    // dayController.onPmEndValidChanged(validVisualizer(pmEnd));
+
+    // add clocks to DOM
+    root.appendChild(amClock.clock);
+    root.appendChild(pmClock.clock);
 };
-
 
 const timeStringToMinutes = timeString => {
     if (!/\d\d:\d\d/.test(timeString)) return 0; // if we cannot parse the string to a time, assume 00:00
@@ -688,12 +732,6 @@ const timeStringToTime = (timeString, minutes = false) => {
     return minutes ? minute : hour;
 }
 
-// const totalMinutesToTime = (totalMinutes, minutes = false) => {
-//     const hour = (totalMinutes / 60) | 0; // div
-//     const minute = totalMinutes % 60;
-//     return minutes ? minute : hour;
-// }
-
 const hiddenInput = (name) => {
     const hiddenInput = document.createElement('input');
     hiddenInput.setAttribute('type', 'hidden')
@@ -702,7 +740,7 @@ const hiddenInput = (name) => {
 }
 
 const totalMinutesToTimeString = totalMinutes => {
-    const hour   = (totalMinutes / 60) | 0; // div
+    const hour = (totalMinutes / 60) | 0; // div
     const minute = totalMinutes % 60;
     return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
 }
@@ -713,5 +751,3 @@ const stringToTimeString = (string) => {
     const newMinute = minute.length < 2 ? "0" + minute : minute
     return newHour + ":" + newMinute;
 }
-
-

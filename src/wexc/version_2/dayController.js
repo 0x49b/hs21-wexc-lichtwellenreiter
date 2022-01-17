@@ -51,7 +51,7 @@ const lunchBreakRule = (am_end, pm_start) => () => { // 40 min lunch break
     const pmStartTime = pm_start.getObs(VALUE).getValue();
 
     if (pmStartTime - amEndTime >= 40) return; // it's all fine, nothing to do
-    // otherwise move the pmStartTime back
+    // otherwise move the pmStartTime back //TODO
     pm_start.setConvertedValue(amEndTime + 40); // Note: no more need to fire an event!
 }
 
