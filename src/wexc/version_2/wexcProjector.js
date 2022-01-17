@@ -7,6 +7,7 @@ const greenColor = '#90F0B6';
 const redColor = '#F09090';
 const whiteColor = '#FFF';
 const greyColor = '#6D6D6D';
+const greyColorAlternative = '#d3d3d3';
 const clockFaceFill = '#ffffff';
 const clockFaceShadow = '#a2a2a2';
 const clockFaceStrokeStyleBold = '#000000';
@@ -380,10 +381,12 @@ const createClock = (dayController, canvasId, root) => {
         const endMinute = timeStringToTime(end_time.value, true);
 
         const clockEditable = !(disabled.getValue() || readOnly.getValue());
+        const hoursArcColor = readOnly.getValue() || disabled.getValue() ? greyColor : darkColor;
+        const minutesArcColor = readOnly.getValue() || disabled.getValue() ? greyColorAlternative : lightColor;
 
-        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, clockEditable);
-        drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
-        drawInnerArc(startMinute, endMinute, lightColor);
+        drawOuterArc(startHour, startMinute, endHour, endMinute, minutesArcColor, clockEditable);
+        drawOuterArc(startHour, startMinute, endHour, endMinute, hoursArcColor, false, true);
+        drawInnerArc(startMinute, endMinute, minutesArcColor);
 
         let isInSlot = (hour) => {
             if (!startHour) return false;
