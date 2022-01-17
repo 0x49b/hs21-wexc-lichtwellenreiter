@@ -348,9 +348,11 @@ const createClock = (dayController, canvasId, root) => {
         const endHour = timeStringToTime(end_time.value);
         const endMinute = timeStringToTime(end_time.value, true);
 
-        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, true);
+        const clockEditable = !(disabled.getValue() || readOnly.getValue());
+
+        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, clockEditable);
         drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
-        drawInnerArc(startMinute, endMinute, lightColor, true);
+        drawInnerArc(startMinute, endMinute, lightColor);
 
         let isInSlot = (hour) => {
             if (!startHour) return false;
@@ -366,10 +368,12 @@ const createClock = (dayController, canvasId, root) => {
         drawLabels(LabelTypes.MINUTE, none); // minute Labels
         drawHighlightLabels(startHour, startMinute, endHour, endMinute, isInSlot);
 
-        handles.forEach(h => {
-            drawHandle(h);
-        });
-
+        if (clockEditable) {
+            handles.forEach(h => {
+                drawHandle(h);
+            });
+        }
+        
         drawMiddlePoint();
     }
 
