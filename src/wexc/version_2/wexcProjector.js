@@ -1,24 +1,34 @@
 export {projectDay}
 
-// Colors
-let lightColor = '#ADCEFF';
-let darkColor = '#4485E8';
-let greenColor = '#90F0B6';
-let redColor = '#F09090';
-let whiteColor = '#FFF';
-let greyColor = '#6D6D6D';
-let clockFaceFill = '#ffffff';
-let clockFaceShadow = '#a2a2a2';
-let clockFaceStrokeStyleBold = '#000000';
-let clockFaceStrokeStyleThin = '#6D6D6D';
-let middlePointColor = '#606060';
+// colors
+const lightColor = '#ADCEFF';
+const darkColor = '#4485E8';
+const greenColor = '#90F0B6';
+const redColor = '#F09090';
+const whiteColor = '#FFF';
+const greyColor = '#6D6D6D';
+const clockFaceFill = '#ffffff';
+const clockFaceShadow = '#a2a2a2';
+const clockFaceStrokeStyleBold = '#000000';
+const clockFaceStrokeStyleThin = '#6D6D6D';
+const middlePointColor = '#606060';
 
+// preferences
+const TOLERANCE = 20;
+
+// sizes
+const outerArcWidth = 55;
+const handleWidth = 5;
+const handleLengthExtension = 8;
+
+// types
 const LabelTypes = {
     HOUR: "Hour",
     MINUTE: "Minute",
     HOUR_HIGHLIGHT: "Highlighted_Hour"
-}
+};
 
+// observable objects
 const Observable = value => {
     const listeners = []; // many
     return {
@@ -33,25 +43,20 @@ const Observable = value => {
     }
 };
 
-const createClock = (dayController, canvasId) => {
+// misc.
+const none = (_) => false;
+
+const createClock = (dayController, canvasId, root) => {
     // states
-    // let darkMode = Observable(false);
-    let disabled = Observable(false);
-    // let invalid = Observable(false);
+    const darkMode = Observable(false);
+    const disabled = Observable(false);
+    const invalid = Observable(false);
+    const required = Observable(false);
+    const readOnly = Observable(false);
 
-    // Positions & Sizes
-    let outerArcWidth = 55;
-    let handleWidth = 5;
-    let handleLengthExtension = 8;
-    let tolerance = 10;
+    let downHandle = null;
 
-    const mousePosition = {x: 0, y: 0};
-    const nullVector = {x: 0, y: 0};
-
-    let handles = [];
-    let clickableHours = [];
-
-    let handleStates = {
+    const handleStates = {
         startHour: false,
         startMinute: false,
         endHour: false,
@@ -59,13 +64,20 @@ const createClock = (dayController, canvasId) => {
     }
 
     let timeSetInitially = false;
-    let userInteractionFinished = _ => (
+    const userInteractionFinished = _ => (
         handleStates.startHour
         && handleStates.startMinute
         && handleStates.endHour
         && handleStates.endMinute
         && downHandle === null
     )
+
+    // positions & sizes
+    const mousePosition = {x: 0, y: 0};
+    const nullVector = {x: 0, y: 0};
+
+    let handles = [];
+    const clickableHours = [];
 
     // setup canvas
     const clock = document.createElement('canvas');
@@ -88,14 +100,13 @@ const createClock = (dayController, canvasId) => {
     [start_time, end_time].forEach(input => clock.appendChild(input));
     [start_time, end_time].forEach(input => input.value = "00:00");
 
-    // will be fired (!only) if interaction ended
     const startListeners = [];
     const endListeners = [];
 
     // handle interactions
     clock.addEventListener("mouseup", _ => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
         if (handleStates.startHour === false && mouseOnHour(mousePosition) >= 0) {
             // first click on hourlabel -> set startHour
@@ -155,7 +166,7 @@ const createClock = (dayController, canvasId) => {
 
     clock.addEventListener("mousemove", e => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
         // update MousePosition
         mousePosition.x = e.clientX;
@@ -164,32 +175,32 @@ const createClock = (dayController, canvasId) => {
 
         if (downHandle != null) {
             // calculate angle to mouse position
-            let delta_x = positionOnCanvas.x - centerX;
-            let delta_y = centerY - positionOnCanvas.y;
+            const delta_x = positionOnCanvas.x - centerX;
+            const delta_y = centerY - positionOnCanvas.y;
 
             let angle = Math.atan2(delta_x, delta_y);
             angle = angle <= 0 ? Math.PI * 2 + angle : angle; // convert negativ to positiv angle
-            let minutes = timeForAngle(angle, true);
+            const minutes = timeForAngle(angle, true);
 
             // use angle of time to get snappy behavior for minute ticks
-            let angleOfTime = angleForTime(0, minutes, true);
+            const angleOfTime = angleForTime(0, minutes, true);
             downHandle.ex = downHandle.mx + downHandle.length * Math.cos(angleOfTime);
             downHandle.ey = downHandle.my + downHandle.length * Math.sin(angleOfTime);
 
             // set start or end minute
             if (downHandle.name === "startMinute") {
-                let currentHour = timeStringToTime(start_time.value)
+                const currentHour = timeStringToTime(start_time.value);
                 start_time.value = stringToTimeString(currentHour + ":" + minutes);
                 handleStates.startMinute = true;
             } else if (downHandle.name === "endMinute") {
-                let currentHour = timeStringToTime(end_time.value)
+                const currentHour = timeStringToTime(end_time.value);
                 end_time.value = stringToTimeString(currentHour + ":" + minutes);
                 handleStates.endMinute = true;
             }
         }
     });
 
-
+// TODO
     // const resetColors = () => {
     //     const bdy = document.querySelector('body');
     //     const isDisabled = disabled.getValue();
@@ -223,7 +234,7 @@ const createClock = (dayController, canvasId) => {
     // }
 
     function getMousePosOnCanvas(coordinates) {
-        let rect = clock.getBoundingClientRect();
+        const rect = clock.getBoundingClientRect();
         return {
             x: coordinates.x - rect.left,
             y: coordinates.y - rect.top
@@ -252,11 +263,11 @@ const createClock = (dayController, canvasId) => {
 
     const mouseNearHandle = (line, x, y) => {
         const lerp = (a, b, x) => (a + x * (b - a));
-        let dx = line.mx - line.ex;
-        let dy = line.my - line.ey;
-        let t = ((x - line.ex) * dx + (y - line.ey) * dy) / (dx * dx + dy * dy);
-        let lineX = lerp(line.ex, line.mx, t);
-        let lineY = lerp(line.ey, line.my, t);
+        const dx = line.mx - line.ex;
+        const dy = line.my - line.ey;
+        const t = ((x - line.ex) * dx + (y - line.ey) * dy) / (dx * dx + dy * dy);
+        const lineX = lerp(line.ex, line.mx, t);
+        const lineY = lerp(line.ey, line.my, t);
         return ({x: lineX, y: lineY});
     }
 
@@ -278,8 +289,6 @@ const createClock = (dayController, canvasId) => {
         return hourClicked;
     }
 
-    let downHandle = null;
-
     function resetTime() {
         start_time.value = "00:00";
         end_time.value = "00:00";
@@ -296,20 +305,20 @@ const createClock = (dayController, canvasId) => {
 
     clock.addEventListener("mousedown", e => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
         // update MousePosition
         mousePosition.x = e.clientX;
         mousePosition.y = e.clientY;
         const positionOnCanvas = getMousePosOnCanvas(mousePosition);
 
-        // Check if we are on a line and handle the line
+        // check if we are on a line and handle the line
         handles.forEach(h => {
-            let linepoint = mouseNearHandle(h, positionOnCanvas.x, positionOnCanvas.y);
-            let dx = positionOnCanvas.x - linepoint.x;
-            let dy = positionOnCanvas.y - linepoint.y;
-            let distance = Math.abs(Math.sqrt(dx * dx + dy * dy));
-            if (distance < tolerance) {
+            const linePoint = mouseNearHandle(h, positionOnCanvas.x, positionOnCanvas.y);
+            const dx = positionOnCanvas.x - linePoint.x;
+            const dy = positionOnCanvas.y - linePoint.y;
+            const distance = Math.abs(Math.sqrt(dx * dx + dy * dy));
+            if (distance < TOLERANCE) {
                 downHandle = h;
                 h.clicked = true;
             }
@@ -322,8 +331,6 @@ const createClock = (dayController, canvasId) => {
     const calcLineAngle = handle => {
         return dotProduct(nullVector.x, nullVector.y, handle.ex, handle.ey) / (valueOfVector(nullVector.x, nullVector.y) * valueOfVector(handle.ex, handle.ey));
     }
-
-    const none = (_) => false;
 
     const start = () => {
         nextClock();
@@ -602,24 +609,36 @@ const createClock = (dayController, canvasId) => {
     }
 
 
-    // // observer for mutations of states
-    // const observer = new MutationObserver(function (mutations) {
-    //     mutations.forEach(function (mutation) {
-    //         switch (mutation.attributeName) {
-    //             case "readonly":
-    //                 // readOnlyChanged();
-    //                 break;
-    //             case "required":
-    //                 // requiredChanged();
-    //                 break;
-    //         }
-    //     });
-    // });
-    //
-    // // observe hidden hiddenInput field for state changes
-    // observer.observe(start_time, {
-    //     attributes: true
-    // });
+    // observer for mutations of states
+    const observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            switch (mutation.attributeName) {
+                case "readonly":
+                    readOnly.setValue(!readOnly.getValue())
+                    break;
+                case "required":
+                    required.setValue(!required.getValue())
+                    break;
+                case "disabled":
+                    disabled.setValue(!disabled.getValue())
+                    break;
+            }
+        });
+    });
+
+    // observe hidden hiddenInput field for state changes
+    observer.observe(start_time, {
+        attributes: true
+    });
+    observer.observe(root, {
+        attributes: true
+    });
+
+    // TODO remove
+    readOnly.onChange(_ => console.log("readonly: "+readOnly.getValue()))
+    required.onChange(_ => console.log("required: "+required.getValue()))
+    disabled.onChange(_ => console.log("disabled: "+disabled.getValue()))
+
 
 // // dark mode
 // darModeCB.onchange = _ => darkMode.setValue(!darkMode.getValue());
@@ -662,8 +681,8 @@ const createClock = (dayController, canvasId) => {
 
 const projectDay = (dayController, root) => {
     // generate clocks
-    const amClock = createClock(dayController, "amClockCanvas");
-    const pmClock = createClock(dayController, "pmClockCanvas");
+    const amClock = createClock(dayController, "amClockCanvas", root);
+    const pmClock = createClock(dayController, "pmClockCanvas", root);
 
     // view binding: change in the view (by the user) -> change in the model
     amClock.startOnChange(newTime => {
