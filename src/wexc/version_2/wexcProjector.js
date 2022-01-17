@@ -28,6 +28,13 @@ const LabelTypes = {
     HOUR_HIGHLIGHT: "Highlighted_Hour"
 };
 
+const HandleType = {
+    START_HOUR: "startHour",
+    START_MINUTE: "startMinute",
+    END_HOUR: "endHour",
+    END_MINUTE: "endMinute"
+};
+
 // observable objects
 const Observable = value => {
     const listeners = []; // many
@@ -188,11 +195,11 @@ const createClock = (dayController, canvasId, root) => {
             downHandle.ey = downHandle.my + downHandle.length * Math.sin(angleOfTime);
 
             // set start or end minute
-            if (downHandle.name === "startMinute") {
+            if (downHandle.name === HandleType.START_MINUTE) {
                 const currentHour = timeStringToTime(start_time.value);
                 start_time.value = stringToTimeString(currentHour + ":" + minutes);
                 handleStates.startMinute = true;
-            } else if (downHandle.name === "endMinute") {
+            } else if (downHandle.name === HandleType.END_MINUTE) {
                 const currentHour = timeStringToTime(end_time.value);
                 end_time.value = stringToTimeString(currentHour + ":" + minutes);
                 handleStates.endMinute = true;
@@ -232,6 +239,30 @@ const createClock = (dayController, canvasId, root) => {
     //         middlePointColor = '#606060';
     //     }
     // }
+
+    const updateHandle = (handleType) => {
+        let handle = null;
+        let minutes = 0;
+
+        // get current value for defined HandleType
+        switch (handleType){
+            case HandleType.START_MINUTE:
+                handle = handles.find(elm => elm.name === HandleType.START_MINUTE);
+                minutes = timeStringToTime(start_time.value, true)
+                break;
+            case HandleType.END_MINUTE:
+                handle = handles.find(elm => elm.name === HandleType.END_MINUTE);
+                minutes = timeStringToTime(end_time.value, true)
+                break;
+        }
+
+        // if handle not null, change position
+        if (handle) {
+            const angleOfTime = angleForTime(0, minutes, true);
+            handle.ex = handle.mx + handle.length * Math.cos(angleOfTime);
+            handle.ey = handle.my + handle.length * Math.sin(angleOfTime);
+        }
+    }
 
     function getMousePosOnCanvas(coordinates) {
         const rect = clock.getBoundingClientRect();
@@ -670,12 +701,14 @@ const createClock = (dayController, canvasId, root) => {
             console.log("setStart by controller: " + newValue+" "+userInteractionFinished())
             if (userInteractionFinished()){
                 start_time.value = newValue;
+                updateHandle(HandleType.START_MINUTE);
             }
         },
         setEnd: newValue => {
             console.log("setEnd by controller: " + newValue+" "+userInteractionFinished())
             if (userInteractionFinished()){
                 end_time.value = newValue;
+                updateHandle(HandleType.END_MINUTE);
             }
         },
         startOnChange: callback => startListeners.push(callback),
