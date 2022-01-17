@@ -165,12 +165,6 @@ const createClock = (dayController, canvasId, root) => {
                         downHandle = null;
 
                         if (!timeSetInitially) {
-                            console.log("startlistener fired")
-                            console.log(handleStates.startHour + ", "
-                                + handleStates.startMinute + ", "
-                                + handleStates.endHour + ", "
-                                + handleStates.endMinute + ", "
-                                + (downHandle === null))
                             startListeners.forEach(listener => listener(start_time.value));
                             timeSetInitially = true;
                         }
@@ -785,7 +779,6 @@ const createClock = (dayController, canvasId, root) => {
         start_field: start_time,
         end_field: end_time,
         setStart: newValue => {
-            console.log("setStart by controller: " + newValue + " " + userInteractionFinished())
             if (userInteractionFinished()) {
                 start_time.value = newValue;
                 if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
@@ -796,7 +789,6 @@ const createClock = (dayController, canvasId, root) => {
             }
         },
         setEnd: newValue => {
-            console.log("setEnd by controller: " + newValue + " " + userInteractionFinished())
             if (userInteractionFinished()) {
                 end_time.value = newValue;
                 if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
@@ -819,22 +811,18 @@ const projectDay = (dayController, root) => {
 
     // view binding: change in the view (by the user) -> change in the model
     amClock.startOnChange(newTime => {
-        console.log("AM START interaction finished – new val:" + newTime)
         dayController.setAmStart(timeStringToMinutes(newTime));
     });
 
     amClock.endOnChange(newTime => {
-        console.log("AM END interaction finished – new val:" + newTime)
         dayController.setAmEnd(timeStringToMinutes(newTime));
     });
 
     pmClock.startOnChange(newTime => {
-        console.log("PM START interaction finished – new val:" + newTime)
         dayController.setPmStart(timeStringToMinutes(newTime));
     });
 
     pmClock.endOnChange(newTime => {
-        console.log("PM END interaction finished – new val:" + newTime)
         dayController.setPmEnd(timeStringToMinutes(newTime));
     });
 
