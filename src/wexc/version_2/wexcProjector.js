@@ -35,9 +35,9 @@ const Observable = value => {
 
 const createClock = (dayController, canvasId) => {
     // states
-    let darkMode = Observable(false);
+    // let darkMode = Observable(false);
     let disabled = Observable(false);
-    let invalid = Observable(false);
+    // let invalid = Observable(false);
 
     // Positions & Sizes
     let outerArcWidth = 55;
@@ -50,14 +50,15 @@ const createClock = (dayController, canvasId) => {
 
     let handles = [];
     let clickableHours = [];
-    
-    let selectedTimeWithHandle = {
-        startHour: null,
-        startMinute: null,
-        endHour: null,
-        endMinute: null
+
+    let handleStates = {
+        startHour: false,
+        startMinute: false,
+        endHour: false,
+        endMinute: false
     }
 
+    // setup canvas
     const clock = document.createElement('canvas');
     clock.id = canvasId;
     clock.width = 600;
@@ -72,24 +73,36 @@ const createClock = (dayController, canvasId) => {
     let radius = clock.width / 2 - outerArcWidth - 10;
     nullvector.x = clock.width / 2;
 
+    // hidden input field representing time and states (e.g. 'read only')
+    const start_time = hiddenInput('start');
+    const end_time = hiddenInput('end');
+    [start_time, end_time].forEach(input => clock.appendChild(input));
+    [start_time, end_time].forEach(input => input.value = "00:00");
+
+    // handle interactions
     clock.addEventListener("mouseup", _ => {
         // ignore all interaction if disabled
         if (disabled.getValue()) return;
 
-        if (selectedTimeWithHandle.startHour === null && mouseOnHour(mousePosition) >= 0) {
+        if (handleStates.startHour === false && mouseOnHour(mousePosition) >= 0) {
             // first click on hourlabel -> set startHour
-            selectedTimeWithHandle.startHour = mouseOnHour(mousePosition);
-        } else if (selectedTimeWithHandle.endHour === null && mouseOnHour(mousePosition) >= 0) {
+            start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
+            console.log("detected mouse click:" + stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true)));
+            handleStates.startHour = true;
+            console.log("start_time: "+start_time.value)
+        } else if (handleStates.endHour === false && mouseOnHour(mousePosition) >= 0) {
             // second click on hourlabel -> set endHour + show handle
-            selectedTimeWithHandle.endHour = mouseOnHour(mousePosition);
+            end_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(end_time, true));
+            handleStates.endHour = true;
             handles.push(new Handle("startMinute", clock.width / 2, 50, true, 2 * Math.PI, 200));
+            console.log("start_time: "+start_time.value)
         } else if (handles.length === 1 && downHandle != null) {
             // first handle set -> show second handle
             handles.push(new Handle("endMinute", clock.width / 2, 50, false, 2 * Math.PI, 200));
         } else if (mouseOnHour(mousePosition) > 0 && downHandle === null) {
             // click on hourlabel && no handle selected -> reset
             resetTime();
-            selectedTimeWithHandle.startHour = mouseOnHour(mousePosition);
+            start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
         }
 
         // set minutes according to handle position
@@ -124,45 +137,49 @@ const createClock = (dayController, canvasId) => {
 
             // set start or end minute
             if (downHandle.name === "startMinute") {
-                selectedTimeWithHandle.startMinute = minutes;
+                let currentHour = timeStringToTime(start_time.value)
+                start_time.value = stringToTimeString(currentHour + ":" + minutes);
+                handleStates.startMinute = true;
             } else if (downHandle.name === "endMinute") {
-                selectedTimeWithHandle.endMinute = minutes;
+                let currentHour = timeStringToTime(end_time.value)
+                end_time.value = stringToTimeString(currentHour + ":" + minutes);
+                handleStates.endMinute = true;
             }
         }
     });
 
 
-    const resetColors = () => {
-        const bdy = document.querySelector('body');
-        const isDisabled = disabled.getValue();
-        if (darkMode.getValue()) {
-            bdy.dataset.theme = "dark";
-            lightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';
-            darkColor = isDisabled ? '#828282' : '#005AAD';
-            greenColor = isDisabled ? '#828282' : '#90F0B6';
-            redColor = isDisabled ? '#828282' : '#F09090';
-            whiteColor = '#FFF';
-            greyColor = '#DDDDDD';
-            clockFaceFill = '#575757';
-            clockFaceShadow = invalid.getValue() ? '#FF0000' : '#575757';
-            clockFaceStrokeStyleBold = '#FCFCFC';
-            clockFaceStrokeStyleThin = '#EDEDED';
-            middlePointColor = '#E1E1E1';
-        } else {
-            bdy.dataset.theme = "light";
-            lightColor = isDisabled ? '#D8D8D8' : '#ADCEFF';
-            darkColor = isDisabled ? '#A3A3A3' : '#4485E8';
-            greenColor = isDisabled ? '#A3A3A3' : '#90F0B6';
-            redColor = isDisabled ? '#A3A3A3' : '#F09090';
-            whiteColor = '#FFF';
-            greyColor = '#6D6D6D';
-            clockFaceFill = '#FFFFFF';
-            clockFaceShadow = invalid.getValue() ? '#FF0000' : '#a2a2a2';
-            clockFaceStrokeStyleBold = '#000000';
-            clockFaceStrokeStyleThin = '#6D6D6D';
-            middlePointColor = '#606060';
-        }
-    }
+    // const resetColors = () => {
+    //     const bdy = document.querySelector('body');
+    //     const isDisabled = disabled.getValue();
+    //     if (darkMode.getValue()) {
+    //         bdy.dataset.theme = "dark";
+    //         lightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';
+    //         darkColor = isDisabled ? '#828282' : '#005AAD';
+    //         greenColor = isDisabled ? '#828282' : '#90F0B6';
+    //         redColor = isDisabled ? '#828282' : '#F09090';
+    //         whiteColor = '#FFF';
+    //         greyColor = '#DDDDDD';
+    //         clockFaceFill = '#575757';
+    //         clockFaceShadow = invalid.getValue() ? '#FF0000' : '#575757';
+    //         clockFaceStrokeStyleBold = '#FCFCFC';
+    //         clockFaceStrokeStyleThin = '#EDEDED';
+    //         middlePointColor = '#E1E1E1';
+    //     } else {
+    //         bdy.dataset.theme = "light";
+    //         lightColor = isDisabled ? '#D8D8D8' : '#ADCEFF';
+    //         darkColor = isDisabled ? '#A3A3A3' : '#4485E8';
+    //         greenColor = isDisabled ? '#A3A3A3' : '#90F0B6';
+    //         redColor = isDisabled ? '#A3A3A3' : '#F09090';
+    //         whiteColor = '#FFF';
+    //         greyColor = '#6D6D6D';
+    //         clockFaceFill = '#FFFFFF';
+    //         clockFaceShadow = invalid.getValue() ? '#FF0000' : '#a2a2a2';
+    //         clockFaceStrokeStyleBold = '#000000';
+    //         clockFaceStrokeStyleThin = '#6D6D6D';
+    //         middlePointColor = '#606060';
+    //     }
+    // }
 
     function getMousePosOnCanvas(coordinates) {
         let rect = clock.getBoundingClientRect();
@@ -223,10 +240,16 @@ const createClock = (dayController, canvasId) => {
     let downHandle = null;
 
     function resetTime() {
-        selectedTimeWithHandle.startHour = null;
-        selectedTimeWithHandle.startMinute = null;
-        selectedTimeWithHandle.endHour = null;
-        selectedTimeWithHandle.endMinute = null;
+        start_time.value = "00:00";
+        end_time.value = "00:00";
+        handleStates.startHour = false;
+        handleStates.startMinute = false;
+        handleStates.endHour = false;
+        handleStates.endMinute = false;
+        // selectedTimeWithHandle.startHour.setValue(null);
+        // selectedTimeWithHandle.startMinute.setValue(null);
+        // selectedTimeWithHandle.endHour.setValue(null);
+        // selectedTimeWithHandle.endMinute.setValue(null);
         handles = [];
     }
 
@@ -252,7 +275,6 @@ const createClock = (dayController, canvasId) => {
         });
     });
 
-
     const dotProduct = (ax, ay, bx, by) => ax * bx + ay * by;
     const valueOfVector = (ax, ay) => Math.sqrt(ax ** 2 + ay ** 2);
 
@@ -273,10 +295,24 @@ const createClock = (dayController, canvasId) => {
         cx.clearRect(0, 0, clock.width, clock.height);
         drawClockFace();
 
-        const startHour = selectedTimeWithHandle.startHour;
-        const startMinute = selectedTimeWithHandle.startMinute;
-        const endHour = selectedTimeWithHandle.endHour;
-        const endMinute = selectedTimeWithHandle.endMinute;
+        // console.log("start_time: "+start_time.value)
+
+        // console.log({
+        //     start: start_time.value,
+        //     end: end_time.value,
+        // })
+
+        const startHour = timeStringToTime(start_time.value);
+        const startMinute = timeStringToTime(start_time.value, true);
+        const endHour = timeStringToTime(end_time.value);
+        const endMinute = timeStringToTime(end_time.value, true);
+
+        // console.log({
+        //     startHour: timeStringToTime(start_time.value),
+        //     startMinute: timeStringToTime(start_time.value, true),
+        //     endHour: timeStringToTime(end_time.value),
+        //     endMinute: timeStringToTime(end_time.value, true)
+        // })
 
         drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, true);
         drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
@@ -539,62 +575,94 @@ const createClock = (dayController, canvasId) => {
     }
 
 
-    /*
-    /*
-// dark mode
-darModeCB.onchange = _ => darkMode.setValue(!darkMode.getValue());
-darkMode.onChange(() => {
-    resetColors();
-});
+    // // observer for mutations of states
+    // const observer = new MutationObserver(function (mutations) {
+    //     mutations.forEach(function (mutation) {
+    //         switch (mutation.attributeName) {
+    //             case "readonly":
+    //                 // readOnlyChanged();
+    //                 break;
+    //             case "required":
+    //                 // requiredChanged();
+    //                 break;
+    //         }
+    //     });
+    // });
+    //
+    // // observe hidden hiddenInput field for state changes
+    // observer.observe(start_time, {
+    //     attributes: true
+    // });
 
-// disabled
-disabledCB.onchange = _ => disabled.setValue(!disabled.getValue());
-disabled.onChange(() => {
-    resetColors();
-});
+// // dark mode
+// darModeCB.onchange = _ => darkMode.setValue(!darkMode.getValue());
+// darkMode.onChange(() => {
+//     resetColors();
+// });
+//
+// // disabled
+// disabledCB.onchange = _ => disabled.setValue(!disabled.getValue());
+// disabled.onChange(() => {
+//     resetColors();
+// });
+//
+// // invalid
+// invalidCB.onchange = _ => invalid.setValue(!invalid.getValue());
+// invalid.onChange(() => {
+//     resetColors();
+// });
 
-// invalid
-invalidCB.onchange = _ => invalid.setValue(!invalid.getValue());
-invalid.onChange(() => {
-    resetColors();
-});
-
-*/
-
-
-    //const am_start = amDiv.querySelector("#am_start");
-    //const am_end = amDiv.querySelector("#am_end");
-    //const pm_start = pmDiv.querySelector("#pm_start");
-    //const pm_end = pmDiv.querySelector("#pm_end");
+    // bindings with model
+    // const start_hour = selectedTimeWithHandle.startHour;
+    // const start_minute = selectedTimeWithHandle.startMinute;
+    // const end_hour = selectedTimeWithHandle.endHour;
+    // const end_minute = selectedTimeWithHandle.endMinute;
 
     // view binding: change in the view (by the user) -> change in the model
-    //am_start.onchange = event => dayController.setAmStart(timeStringToMinutes(event.target.value));
-    //am_end.onchange = event => dayController.setAmEnd(timeStringToMinutes(event.target.value));
-    //pm_start.onchange = event => dayController.setPmStart(timeStringToMinutes(event.target.value));
-    //pm_end.onchange = event => dayController.setPmEnd(timeStringToMinutes(event.target.value));
+    // start_time.onchange = event => dayController.setAmStart(timeStringToMinutes(event.target.value));
+    // end_time  .onchange = event => dayController.setAmEnd  (timeStringToMinutes(event.target.value));
 
     // data binding: how to visualize changes in the model
-    //dayController.onAmStartChanged(mins => am_start.value = totalMinutesToTimeString(mins));
-    //dayController.onAmEndChanged(mins => am_end.value = totalMinutesToTimeString(mins));
-    //dayController.onPmStartChanged(mins => pm_start.value = totalMinutesToTimeString(mins));
-    //dayController.onPmEndChanged(mins => pm_end.value = totalMinutesToTimeString(mins));
+    // dayController.onAmStartChanged( mins => start_time.value = totalMinutesToTimeString(mins));
+    // dayController.onAmEndChanged  ( mins => end_time  .value = totalMinutesToTimeString(mins));
 
-    //const validVisualizer = element => valid => valid
-    //    ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
-    //    : element.setCustomValidity("invalid");
+    const validVisualizer = element => valid => valid
+        ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
+        : element.setCustomValidity("invalid");
+    // dayController.onAmStartValidChanged( validVisualizer(start_time));
+    // dayController.onAmEndValidChanged  ( validVisualizer(end_time  ));
 
-    //dayController.onAmStartValidChanged(validVisualizer(am_start));
-    //dayController.onAmEndValidChanged(validVisualizer(am_end));
-    //dayController.onPmStartValidChanged(validVisualizer(pm_start));
-    //dayController.onPmEndValidChanged(validVisualizer(pm_end));
 
-    //root.appendChild(amDiv);
-    //root.appendChild(pmDiv);
 
+    // view binding: change in the view (by the user) -> change in the model
+    // start_hour.onchange = () => dayController.setAmStart(timeStringToMinutes(start_hour+':'+start_minute));
+    // start_minute.onchange = () => dayController.setAmStart(timeStringToMinutes(start_hour+':'+start_minute));
+    // end_hour.onchange = () => dayController.setAmEnd(timeStringToMinutes(end_hour+':'+end_minute));
+    // end_minute.onchange = () => dayController.setAmEnd(timeStringToMinutes(end_hour+':'+end_minute));
+
+    //
+    // // data binding: how to visualize changes in the model
+    // dayController.onAmStartChanged(mins => {
+    //     start_hour.setValue(totalMinutesToTime(mins));
+    //     start_minute.setValue(totalMinutesToTime(mins, true));
+    //     console.log('controller set time')
+    // })
+    // dayController.onAmEndChanged(mins => {
+    //     end_hour.setValue(totalMinutesToTime(mins));
+    //     end_minute.setValue(totalMinutesToTime(mins, true));
+    //     console.log('controller set time')
+    // });
+    //
+    // const validVisualizer = element => valid => valid
+    //    ? console.log('valid')// this is one way of dealing with validity in the DOM
+    //    : console.log('invalid');
+    //
+    // dayController.onAmStartValidChanged(validVisualizer(start_hour));
+    // dayController.onAmEndValidChanged(validVisualizer(end_hour));
 
     start();
 
-    return clock
+    return clock;
 }
 
 
@@ -603,8 +671,8 @@ const projectDay = (dayController, root) => {
     const amClock = createClock(dayController, "amClockCanvas");
     root.appendChild(amClock);
 
-    const pmClock = createClock(dayController, "pmClockCanvas");
-    root.appendChild(pmClock);
+    // const pmClock = createClock(dayController, "pmClockCanvas");
+    // root.appendChild(pmClock);
 };
 
 
@@ -614,8 +682,36 @@ const timeStringToMinutes = timeString => {
     return hour * 60 + minute;
 }
 
+const timeStringToTime = (timeString, minutes = false) => {
+    if (!/\d\d:\d\d/.test(timeString)) return 0; // if we cannot parse the string to a time, assume 00:00
+    const [hour, minute] = timeString.split(":").map(Number);
+    return minutes ? minute : hour;
+}
+
+// const totalMinutesToTime = (totalMinutes, minutes = false) => {
+//     const hour = (totalMinutes / 60) | 0; // div
+//     const minute = totalMinutes % 60;
+//     return minutes ? minute : hour;
+// }
+
+const hiddenInput = (name) => {
+    const hiddenInput = document.createElement('input');
+    hiddenInput.setAttribute('type', 'hidden')
+    hiddenInput.setAttribute('id', `hidden-input-${name}`)
+    return hiddenInput
+}
+
 const totalMinutesToTimeString = totalMinutes => {
-    const hour = (totalMinutes / 60) | 0; // div
+    const hour   = (totalMinutes / 60) | 0; // div
     const minute = totalMinutes % 60;
     return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
 }
+
+const stringToTimeString = (string) => {
+    const [hour, minute] = string.split(":").map(String);
+    const newHour = hour.length < 2 ? "0" + hour : hour
+    const newMinute = minute.length < 2 ? "0" + minute : minute
+    return newHour + ":" + newMinute;
+}
+
+
