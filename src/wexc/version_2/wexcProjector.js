@@ -1,24 +1,49 @@
 export {projectDay}
 
-// Colors
+// colors
 let lightColor = '#ADCEFF';
 let darkColor = '#4485E8';
 let greenColor = '#90F0B6';
 let redColor = '#F09090';
+let invalidColor = '#ff6262';
+let invalidColorSecondary = '#ffbfbf';
+let validatingColor = '#ffeca5';
+let validColor = '#2379d3';
 let whiteColor = '#FFF';
 let greyColor = '#6D6D6D';
+let greyColorAlternative = '#d3d3d3';
 let clockFaceFill = '#ffffff';
+let canvasColor = '#f6f6f6';
 let clockFaceShadow = '#a2a2a2';
 let clockFaceStrokeStyleBold = '#000000';
 let clockFaceStrokeStyleThin = '#6D6D6D';
 let middlePointColor = '#606060';
 
+// preferences
+const TOLERANCE = 20;
+const minTime = "04:00";
+const maxTime = "22:00";
+
+// sizes
+const outerArcWidth = 55;
+const handleWidth = 5;
+const handleLengthExtension = 8;
+
+// types
 const LabelTypes = {
     HOUR: "Hour",
     MINUTE: "Minute",
     HOUR_HIGHLIGHT: "Highlighted_Hour"
-}
+};
 
+const HandleType = {
+    START_HOUR: "startHour",
+    START_MINUTE: "startMinute",
+    END_HOUR: "endHour",
+    END_MINUTE: "endMinute"
+};
+
+// observable objects
 const Observable = value => {
     const listeners = []; // many
     return {
@@ -33,55 +58,79 @@ const Observable = value => {
     }
 };
 
-const createClock = (dayController, canvasId) => {
+// misc.
+const none = (_) => false;
+
+const createClock = (dayController, canvasId, root) => {
     // states
-    let darkMode = Observable(false);
-    let disabled = Observable(false);
-    let invalid = Observable(false);
+    const darkMode = Observable(false);
+    const disabled = Observable(false);
+    const invalid = Observable(false);
+    const required = Observable(false);
+    const readOnly = Observable(false);
 
-    // Positions & Sizes
-    let outerArcWidth = 55;
-    let handleWidth = 5;
-    let handleLengthExtension = 8;
-    let tolerance = 10;
+    let downHandle = null;
 
-    const mousePosition = {x: 0, y: 0};
-    const nullvector = {x: 0, y: 0};
-
-    let handles = [];
-    let clickableHours = [];
-    
-    let selectedTimeWithHandle = {
-        startHour: null,
-        startMinute: null,
-        endHour: null,
-        endMinute: null
+    const handleStates = {
+        startHour: false,
+        startMinute: false,
+        endHour: false,
+        endMinute: false
     }
 
+    let timeSetInitially = false;
+    const userInteractionFinished = _ => (
+        handleStates.startHour
+        && handleStates.startMinute
+        && handleStates.endHour
+        && handleStates.endMinute
+        && downHandle === null
+    )
+
+    // positions & sizes
+    const mousePosition = {x: 0, y: 0};
+    const nullVector = {x: 0, y: 0};
+
+    let handles = [];
+    const clickableHours = [];
+
+    // setup canvas
     const clock = document.createElement('canvas');
     clock.id = canvasId;
     clock.width = 600;
     clock.height = 600;
-    clock.style.backgroundColor = '#E5E5E5';
-    clock.style.borderRadius = '5%';
+    clock.style.backgroundColor = canvasColor;
+    clock.style.borderRadius = '2%';
     clock.style.fontFamily = 'Roboto';
 
     let cx = clock.getContext("2d");
     let centerX = clock.width / 2;
     let centerY = clock.height / 2;
     let radius = clock.width / 2 - outerArcWidth - 10;
-    nullvector.x = clock.width / 2;
+    nullVector.x = clock.width / 2;
 
+    // hidden input field representing time and states (e.g. 'read only')
+    const start_time = hiddenInput('start');
+    const end_time = hiddenInput('end');
+    [start_time, end_time].forEach(input => clock.appendChild(input));
+    [start_time, end_time].forEach(input => input.value = "00:00");
+
+    const startListeners = [];
+    const endListeners = [];
+
+    // handle interactions
     clock.addEventListener("mouseup", _ => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
-        if (selectedTimeWithHandle.startHour === null && mouseOnHour(mousePosition) >= 0) {
+        if (handleStates.startHour === false && mouseOnHour(mousePosition) >= 0) {
             // first click on hourlabel -> set startHour
-            selectedTimeWithHandle.startHour = mouseOnHour(mousePosition);
-        } else if (selectedTimeWithHandle.endHour === null && mouseOnHour(mousePosition) >= 0) {
+            start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
+            handleStates.startHour = true;
+        } else if (handleStates.endHour === false && mouseOnHour(mousePosition) >= 0) {
             // second click on hourlabel -> set endHour + show handle
-            selectedTimeWithHandle.endHour = mouseOnHour(mousePosition);
+            end_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(end_time, true));
+            handleStates.endHour = true;
             handles.push(new Handle("startMinute", clock.width / 2, 50, true, 2 * Math.PI, 200));
         } else if (handles.length === 1 && downHandle != null) {
             // first handle set -> show second handle
@@ -89,19 +138,46 @@ const createClock = (dayController, canvasId) => {
         } else if (mouseOnHour(mousePosition) > 0 && downHandle === null) {
             // click on hourlabel && no handle selected -> reset
             resetTime();
-            selectedTimeWithHandle.startHour = mouseOnHour(mousePosition);
+            start_time.value = stringToTimeString(mouseOnHour(mousePosition) + ":" + timeStringToTime(start_time, true));
+            handleStates.startHour = true;
         }
 
-        // set minutes according to handle position
+        checkValidity();
+
+        // handle handle-moves
         if (downHandle != null) {
+            // set minutes according to handle position
             downHandle.angle = calcLineAngle(downHandle);
-            downHandle = null;
+
+            // fire event for new time (& interaction finished)
+            if (handles.length === 2) {
+                switch (downHandle.name) {
+                    case "startMinute":
+                        // no handle down anymore
+                        downHandle = null;
+
+                        if (timeSetInitially) {
+                            startListeners.forEach(listener => listener(start_time.value));
+                        }
+                        break;
+                    case "endMinute":
+                        // no handle down anymore
+                        downHandle = null;
+
+                        if (!timeSetInitially) {
+                            startListeners.forEach(listener => listener(start_time.value));
+                            timeSetInitially = true;
+                        }
+                        endListeners.forEach(listener => listener(end_time.value));
+                        break;
+                }
+            }
         }
     });
 
     clock.addEventListener("mousemove", e => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
         // update MousePosition
         mousePosition.x = e.clientX;
@@ -110,62 +186,112 @@ const createClock = (dayController, canvasId) => {
 
         if (downHandle != null) {
             // calculate angle to mouse position
-            let delta_x = positionOnCanvas.x - centerX;
-            let delta_y = centerY - positionOnCanvas.y;
+            const delta_x = positionOnCanvas.x - centerX;
+            const delta_y = centerY - positionOnCanvas.y;
 
             let angle = Math.atan2(delta_x, delta_y);
             angle = angle <= 0 ? Math.PI * 2 + angle : angle; // convert negativ to positiv angle
-            let minutes = timeForAngle(angle, true);
+            const minutes = timeForAngle(angle, true);
 
             // use angle of time to get snappy behavior for minute ticks
-            let angleOfTime = angleForTime(0, minutes, true);
+            const angleOfTime = angleForTime(0, minutes, true);
             downHandle.ex = downHandle.mx + downHandle.length * Math.cos(angleOfTime);
             downHandle.ey = downHandle.my + downHandle.length * Math.sin(angleOfTime);
 
             // set start or end minute
-            if (downHandle.name === "startMinute") {
-                selectedTimeWithHandle.startMinute = minutes;
-            } else if (downHandle.name === "endMinute") {
-                selectedTimeWithHandle.endMinute = minutes;
+            if (downHandle.name === HandleType.START_MINUTE) {
+                const currentHour = timeStringToTime(start_time.value);
+                start_time.value = stringToTimeString(currentHour + ":" + minutes);
+                handleStates.startMinute = true;
+            } else if (downHandle.name === HandleType.END_MINUTE) {
+                const currentHour = timeStringToTime(end_time.value);
+                end_time.value = stringToTimeString(currentHour + ":" + minutes);
+                handleStates.endMinute = true;
             }
         }
     });
 
-
     const resetColors = () => {
         const bdy = document.querySelector('body');
         const isDisabled = disabled.getValue();
+        const isReadOnly = readOnly.getValue();
         if (darkMode.getValue()) {
-            bdy.dataset.theme = "dark";
-            lightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';
-            darkColor = isDisabled ? '#828282' : '#005AAD';
-            greenColor = isDisabled ? '#828282' : '#90F0B6';
-            redColor = isDisabled ? '#828282' : '#F09090';
-            whiteColor = '#FFF';
+            bdy.dataset.theme = "daletlightColor = isDisabled ? 'rgba(215,215,215,0.70)' : 'rgba(79,140,233,0.76)';";
+            lightColor = isDisabled || isReadOnly  ? '#646464' : '#718394';
+            darkColor = isDisabled || isReadOnly ? '#828282' : '#51adff';
+            greenColor = isDisabled || isReadOnly  ? '#828282' : '#0d642b';
+            redColor = isDisabled || isReadOnly  ? '#828282' : '#b75151';
+            invalidColor = isDisabled || isReadOnly  ? '#a1a1a1' : '#ee3f3f';
+            invalidColorSecondary = isDisabled || isReadOnly  ? '#d0d0d0' : '#e07e7e';
+            whiteColor = '#000';
             greyColor = '#DDDDDD';
             clockFaceFill = '#575757';
-            clockFaceShadow = invalid.getValue() ? '#FF0000' : '#575757';
+            clockFaceShadow = invalid.getValue() ? invalidColor : '#575757';
             clockFaceStrokeStyleBold = '#FCFCFC';
             clockFaceStrokeStyleThin = '#EDEDED';
             middlePointColor = '#E1E1E1';
         } else {
             bdy.dataset.theme = "light";
-            lightColor = isDisabled ? '#D8D8D8' : '#ADCEFF';
-            darkColor = isDisabled ? '#A3A3A3' : '#4485E8';
-            greenColor = isDisabled ? '#A3A3A3' : '#90F0B6';
-            redColor = isDisabled ? '#A3A3A3' : '#F09090';
+            lightColor = isDisabled || isReadOnly  ? '#D8D8D8' : '#ADCEFF';
+            darkColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#4485E8';
+            greenColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#90F0B6';
+            redColor = isDisabled || isReadOnly  ? '#A3A3A3' : '#F09090';
+            invalidColor = isDisabled || isReadOnly  ? greyColor : '#ff6262';
+            invalidColorSecondary = isDisabled || isReadOnly  ? greyColorAlternative : '#ffbfbf';
             whiteColor = '#FFF';
             greyColor = '#6D6D6D';
             clockFaceFill = '#FFFFFF';
-            clockFaceShadow = invalid.getValue() ? '#FF0000' : '#a2a2a2';
+            clockFaceShadow = invalid.getValue() ? invalidColor : '#a2a2a2';
             clockFaceStrokeStyleBold = '#000000';
             clockFaceStrokeStyleThin = '#6D6D6D';
             middlePointColor = '#606060';
         }
     }
 
+    const checkValidity = _ => {
+        const minMinutes = timeStringToMinutes(minTime);
+        const maxMinutes = timeStringToMinutes(maxTime);
+        const startMinutes = timeStringToMinutes(start_time.value);
+        const endMinutes = timeStringToMinutes(end_time.value);
+
+        if (minMinutes > startMinutes) {
+            invalid.setValue(true);
+            return;
+        }
+        if (maxMinutes < endMinutes) {
+            invalid.setValue(true);
+            return;
+        }
+
+        invalid.setValue(false);
+    }
+
+    const updateHandle = (handleType) => {
+        let handle = null;
+        let minutes = 0;
+
+        // get current value for defined HandleType
+        switch (handleType) {
+            case HandleType.START_MINUTE:
+                handle = handles.find(elm => elm.name === HandleType.START_MINUTE);
+                minutes = timeStringToTime(start_time.value, true)
+                break;
+            case HandleType.END_MINUTE:
+                handle = handles.find(elm => elm.name === HandleType.END_MINUTE);
+                minutes = timeStringToTime(end_time.value, true)
+                break;
+        }
+
+        // if handle not null, change position
+        if (handle) {
+            const angleOfTime = angleForTime(0, minutes, true);
+            handle.ex = handle.mx + handle.length * Math.cos(angleOfTime);
+            handle.ey = handle.my + handle.length * Math.sin(angleOfTime);
+        }
+    }
+
     function getMousePosOnCanvas(coordinates) {
-        let rect = clock.getBoundingClientRect();
+        const rect = clock.getBoundingClientRect();
         return {
             x: coordinates.x - rect.left,
             y: coordinates.y - rect.top
@@ -185,7 +311,7 @@ const createClock = (dayController, canvasId) => {
     const drawHandle = (handle) => {
         cx.beginPath();
         cx.lineWidth = handleWidth;
-        cx.strokeStyle = handle.isStartHandle ? greenColor : redColor;
+        cx.strokeStyle = handle.isStartHandle ? greyColor : darkColor;
         cx.moveTo(handle.mx, handle.my);
         cx.lineTo(handle.ex, handle.ey);
         cx.stroke();
@@ -194,11 +320,11 @@ const createClock = (dayController, canvasId) => {
 
     const mouseNearHandle = (line, x, y) => {
         const lerp = (a, b, x) => (a + x * (b - a));
-        let dx = line.mx - line.ex;
-        let dy = line.my - line.ey;
-        let t = ((x - line.ex) * dx + (y - line.ey) * dy) / (dx * dx + dy * dy);
-        let lineX = lerp(line.ex, line.mx, t);
-        let lineY = lerp(line.ey, line.my, t);
+        const dx = line.mx - line.ex;
+        const dy = line.my - line.ey;
+        const t = ((x - line.ex) * dx + (y - line.ey) * dy) / (dx * dx + dy * dy);
+        const lineX = lerp(line.ex, line.mx, t);
+        const lineY = lerp(line.ey, line.my, t);
         return ({x: lineX, y: lineY});
     }
 
@@ -220,47 +346,48 @@ const createClock = (dayController, canvasId) => {
         return hourClicked;
     }
 
-    let downHandle = null;
-
     function resetTime() {
-        selectedTimeWithHandle.startHour = null;
-        selectedTimeWithHandle.startMinute = null;
-        selectedTimeWithHandle.endHour = null;
-        selectedTimeWithHandle.endMinute = null;
+        start_time.value = "00:00";
+        end_time.value = "00:00";
+
+        handleStates.startHour = false;
+        handleStates.startMinute = false;
+        handleStates.endHour = false;
+        handleStates.endMinute = false;
+
+        timeSetInitially = false;
+
         handles = [];
     }
 
     clock.addEventListener("mousedown", e => {
         // ignore all interaction if disabled
-        if (disabled.getValue()) return;
+        if (disabled.getValue() || readOnly.getValue()) return;
 
         // update MousePosition
         mousePosition.x = e.clientX;
         mousePosition.y = e.clientY;
         const positionOnCanvas = getMousePosOnCanvas(mousePosition);
 
-        // Check if we are on a line and handle the line
+        // check if we are on a line and handle the line
         handles.forEach(h => {
-            let linepoint = mouseNearHandle(h, positionOnCanvas.x, positionOnCanvas.y);
-            let dx = positionOnCanvas.x - linepoint.x;
-            let dy = positionOnCanvas.y - linepoint.y;
-            let distance = Math.abs(Math.sqrt(dx * dx + dy * dy));
-            if (distance < tolerance) {
+            const linePoint = mouseNearHandle(h, positionOnCanvas.x, positionOnCanvas.y);
+            const dx = positionOnCanvas.x - linePoint.x;
+            const dy = positionOnCanvas.y - linePoint.y;
+            const distance = Math.abs(Math.sqrt(dx * dx + dy * dy));
+            if (distance < TOLERANCE) {
                 downHandle = h;
                 h.clicked = true;
             }
         });
     });
 
-
     const dotProduct = (ax, ay, bx, by) => ax * bx + ay * by;
     const valueOfVector = (ax, ay) => Math.sqrt(ax ** 2 + ay ** 2);
 
     const calcLineAngle = handle => {
-        return dotProduct(nullvector.x, nullvector.y, handle.ex, handle.ey) / (valueOfVector(nullvector.x, nullvector.y) * valueOfVector(handle.ex, handle.ey));
+        return dotProduct(nullVector.x, nullVector.y, handle.ex, handle.ey) / (valueOfVector(nullVector.x, nullVector.y) * valueOfVector(handle.ex, handle.ey));
     }
-
-    const none = (_) => false;
 
     const start = () => {
         nextClock();
@@ -271,16 +398,19 @@ const createClock = (dayController, canvasId) => {
 
     const nextClock = () => {
         cx.clearRect(0, 0, clock.width, clock.height);
+        resetColors()
         drawClockFace();
 
-        const startHour = selectedTimeWithHandle.startHour;
-        const startMinute = selectedTimeWithHandle.startMinute;
-        const endHour = selectedTimeWithHandle.endHour;
-        const endMinute = selectedTimeWithHandle.endMinute;
+        const startHour = timeStringToTime(start_time.value);
+        const startMinute = timeStringToTime(start_time.value, true);
+        const endHour = timeStringToTime(end_time.value);
+        const endMinute = timeStringToTime(end_time.value, true);
 
-        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, true);
+        const clockEditable = !(disabled.getValue() || readOnly.getValue());
+
+        drawOuterArc(startHour, startMinute, endHour, endMinute, lightColor, clockEditable);
         drawOuterArc(startHour, startMinute, endHour, endMinute, darkColor, false, true);
-        drawInnerArc(startMinute, endMinute, lightColor, true);
+        drawInnerArc(startMinute, endMinute, lightColor);
 
         let isInSlot = (hour) => {
             if (!startHour) return false;
@@ -296,9 +426,11 @@ const createClock = (dayController, canvasId) => {
         drawLabels(LabelTypes.MINUTE, none); // minute Labels
         drawHighlightLabels(startHour, startMinute, endHour, endMinute, isInSlot);
 
-        handles.forEach(h => {
-            drawHandle(h);
-        });
+        if (clockEditable) {
+            handles.forEach(h => {
+                drawHandle(h);
+            });
+        }
 
         drawMiddlePoint();
     }
@@ -367,10 +499,22 @@ const createClock = (dayController, canvasId) => {
 
     }
 
+    const validationColor = _ => {
+        if (invalid.getValue()) {
+            return invalidColor;
+        } else if (required.getValue() && !userInteractionFinished()) {
+            return validatingColor;
+        } else {
+            return required.getValue() ? validColor : "transparent";
+        }
+    }
+
     const drawClockFace = () => {
         // Weisse Scheibe
         cx.save();
         cx.fillStyle = clockFaceFill;
+        cx.strokeStyle = validationColor();
+        cx.lineWidth = 4;
         cx.translate(centerX, centerY);
         cx.shadowColor = clockFaceShadow;
         cx.shadowBlur = 10;
@@ -378,6 +522,7 @@ const createClock = (dayController, canvasId) => {
         cx.beginPath();
         cx.arc(0, 0, 270, 0, Math.PI * 2);
         cx.fill();
+        cx.stroke();
         cx.closePath();
         cx.restore();
 
@@ -484,22 +629,67 @@ const createClock = (dayController, canvasId) => {
 
         let startAngle;
         let endAngle;
+        let startInvalidAngle = null;
+        let endInvalidAngle = null;
 
         if (fullHoursOnly) {
             let startFullHour = startMinute > 0 ? startHour + 1 : startHour;
-            startAngle = angleForTime(startFullHour, 0);
-            endAngle = angleForTime(endHour, 0);
-        } else {
-            startAngle = angleForTime(startHour, startMinute);
-            endAngle = angleForTime(endHour, endMinute);
-        }
 
-        drawArc(startAngle, endAngle, color, false);
+            // invalid time
+            if (timeStringToMinutes(stringToTimeString(startFullHour+ ":00")) < timeStringToMinutes(minTime)) {
+                startAngle = angleForTime(minTime.split(":").map(Number)[0], 0);
+                endAngle = angleForTime(endHour, 0);
+
+                startInvalidAngle = angleForTime(startFullHour, 0);
+                endInvalidAngle = angleForTime(minTime.split(":").map(Number)[0], 0);
+            } else if (timeStringToMinutes(stringToTimeString(endHour + ":00")) > timeStringToMinutes(maxTime)) {
+                startAngle = angleForTime(startFullHour, 0);
+                endAngle = angleForTime(maxTime.split(":").map(Number)[0], 0);
+
+                startInvalidAngle = angleForTime(maxTime.split(":").map(Number)[0], 0);
+                endInvalidAngle = angleForTime(endHour, 0);
+            } else {
+                // valid time
+                startAngle = angleForTime(startFullHour, 0);
+                endAngle = angleForTime(endHour, 0);
+            }
+
+            drawArc(startAngle, endAngle, color, false);
+            if (startInvalidAngle !== null) drawArc(startInvalidAngle, endInvalidAngle, invalidColor, false);
+
+        } else {
+
+            // invalid time
+            if (timeStringToMinutes(stringToTimeString(startHour + ":" + startMinute)) < timeStringToMinutes(minTime)) {
+                startAngle = angleForTime(minTime.split(":").map(Number)[0], minTime.split(":").map(Number)[1]);
+                endAngle = angleForTime(endHour, endMinute);
+
+                startInvalidAngle = angleForTime(startHour, startMinute);
+                endInvalidAngle = angleForTime(minTime.split(":").map(Number)[0], minTime.split(":").map(Number)[1]);
+            } else if (timeStringToMinutes(endHour + endMinute) > timeStringToMinutes(maxTime)) {
+                startAngle = angleForTime(startHour, startMinute);
+                endAngle = angleForTime(maxTime.split(":").map(Number)[0], maxTime.split(":").map(Number)[1]);
+
+                startInvalidAngle = angleForTime(maxTime.split(":").map(Number)[0], maxTime.split(":").map(Number)[1]);
+                endInvalidAngle = angleForTime(endHour, endMinute);
+            } else {
+                startAngle = angleForTime(startHour, startMinute);
+                endAngle = angleForTime(endHour, endMinute);
+            }
+
+            drawArc(startAngle, endAngle, color, false);
+            if (startInvalidAngle !== null) drawArc(startInvalidAngle, endInvalidAngle, invalidColorSecondary, false);
+        }
 
         if (drawLines) {
-            drawLine(startAngle, greenColor);
-            drawLine(endAngle, redColor);
+            const startInvalid = startInvalidAngle != null && startInvalidAngle < startAngle;
+            const endInvalid = endInvalidAngle !== null && endInvalidAngle > endAngle;
+            startAngle = startInvalid ? startInvalidAngle : startAngle;
+            endAngle = endInvalid ? endInvalidAngle : endAngle;
+            drawLine(startAngle, startInvalid ? invalidColor : greyColor);
+            drawLine(endAngle, endInvalid ? invalidColor : darkColor);
         }
+
     }
 
     const drawInnerArc = (startMinute, endMinute, color) => {
@@ -539,74 +729,137 @@ const createClock = (dayController, canvasId) => {
     }
 
 
-    /*
-    /*
-// dark mode
-darModeCB.onchange = _ => darkMode.setValue(!darkMode.getValue());
-darkMode.onChange(() => {
-    resetColors();
-});
+    // observer for mutations of states
+    const observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            switch (mutation.attributeName) {
+                case "readonly":
+                    readOnly.setValue(!readOnly.getValue())
+                    break;
+                case "required":
+                    required.setValue(!required.getValue())
+                    break;
+                case "disabled":
+                    disabled.setValue(!disabled.getValue())
+                    break;
+            }
+        });
+    });
 
-// disabled
-disabledCB.onchange = _ => disabled.setValue(!disabled.getValue());
-disabled.onChange(() => {
-    resetColors();
-});
+    // observe hidden hiddenInput field for state changes
+    observer.observe(start_time, {
+        attributes: true
+    });
+    observer.observe(root, {
+        attributes: true
+    });
 
-// invalid
-invalidCB.onchange = _ => invalid.setValue(!invalid.getValue());
-invalid.onChange(() => {
-    resetColors();
-});
-
-*/
-
-
-    //const am_start = amDiv.querySelector("#am_start");
-    //const am_end = amDiv.querySelector("#am_end");
-    //const pm_start = pmDiv.querySelector("#pm_start");
-    //const pm_end = pmDiv.querySelector("#pm_end");
-
-    // view binding: change in the view (by the user) -> change in the model
-    //am_start.onchange = event => dayController.setAmStart(timeStringToMinutes(event.target.value));
-    //am_end.onchange = event => dayController.setAmEnd(timeStringToMinutes(event.target.value));
-    //pm_start.onchange = event => dayController.setPmStart(timeStringToMinutes(event.target.value));
-    //pm_end.onchange = event => dayController.setPmEnd(timeStringToMinutes(event.target.value));
-
-    // data binding: how to visualize changes in the model
-    //dayController.onAmStartChanged(mins => am_start.value = totalMinutesToTimeString(mins));
-    //dayController.onAmEndChanged(mins => am_end.value = totalMinutesToTimeString(mins));
-    //dayController.onPmStartChanged(mins => pm_start.value = totalMinutesToTimeString(mins));
-    //dayController.onPmEndChanged(mins => pm_end.value = totalMinutesToTimeString(mins));
-
-    //const validVisualizer = element => valid => valid
-    //    ? element.setCustomValidity("")  // this is one way of dealing with validity in the DOM
-    //    : element.setCustomValidity("invalid");
-
-    //dayController.onAmStartValidChanged(validVisualizer(am_start));
-    //dayController.onAmEndValidChanged(validVisualizer(am_end));
-    //dayController.onPmStartValidChanged(validVisualizer(pm_start));
-    //dayController.onPmEndValidChanged(validVisualizer(pm_end));
-
-    //root.appendChild(amDiv);
-    //root.appendChild(pmDiv);
-
+    const doc = document.querySelector('html');
+    let prevClassState = doc.classList.contains('darkTheme');
+    const observer2 = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if(mutation.attributeName === "class"){
+                const currentClassState = mutation.target.classList.contains('darkTheme');
+                if(prevClassState !== currentClassState)    {
+                    prevClassState = currentClassState;
+                    if(currentClassState)
+                        darkMode.setValue(true)
+                    else
+                        darkMode.setValue(false)
+                }
+            }
+        });
+    });
+    observer2.observe(doc, {attributes: true});
 
     start();
 
-    return clock
+    return {
+        clock: clock,
+        start_field: start_time,
+        end_field: end_time,
+        setStart: newValue => {
+            if (userInteractionFinished()) {
+                start_time.value = newValue;
+                if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
+                    end_time.value = stringToTimeString((
+                        end_time.value.split(":").map(Number)[0] + 2) + ":00")
+                }
+                updateHandle(HandleType.START_MINUTE);
+            }
+        },
+        setEnd: newValue => {
+            if (userInteractionFinished()) {
+                end_time.value = newValue;
+                if (timeStringToMinutes(start_time.value) >= timeStringToMinutes(end_time.value)) {
+                    end_time.value = stringToTimeString((
+                        end_time.value.split(":").map(Number)[0] + 2) + ":00")
+                }
+                updateHandle(HandleType.END_MINUTE);
+            }
+        },
+        startOnChange: callback => startListeners.push(callback),
+        endOnChange: callback => endListeners.push(callback),
+        setInvalid: isInvalid => invalid.setValue(isInvalid)
+    };
 }
 
-
 const projectDay = (dayController, root) => {
-    // create view
-    const amClock = createClock(dayController, "amClockCanvas");
-    root.appendChild(amClock);
+    // generate clocks
+    const amClock = createClock(dayController, "amClockCanvas", root);
+    const pmClock = createClock(dayController, "pmClockCanvas", root);
 
-    const pmClock = createClock(dayController, "pmClockCanvas");
-    root.appendChild(pmClock);
+    // view binding: change in the view (by the user) -> change in the model
+    amClock.startOnChange(newTime => {
+        dayController.setAmStart(timeStringToMinutes(newTime));
+    });
+
+    amClock.endOnChange(newTime => {
+        dayController.setAmEnd(timeStringToMinutes(newTime));
+    });
+
+    pmClock.startOnChange(newTime => {
+        dayController.setPmStart(timeStringToMinutes(newTime));
+    });
+
+    pmClock.endOnChange(newTime => {
+        dayController.setPmEnd(timeStringToMinutes(newTime));
+    });
+
+    // data binding: how to visualize changes in the model
+    dayController.onAmStartChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        amClock.setStart(newTime);
+    });
+
+    dayController.onAmEndChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        amClock.setEnd(newTime);
+    });
+
+    dayController.onPmStartChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        pmClock.setStart(newTime);
+    });
+
+    dayController.onPmEndChanged(mins => {
+        let newTime = totalMinutesToTimeString(mins);
+        pmClock.setEnd(newTime);
+    });
+
+    const validVisualizer = clock => valid => valid
+        ? clock.setInvalid(false) // this is one way of dealing with validity in the DOM
+        : clock.setInvalid(true);
+
+    dayController.onAmStartValidChanged(validVisualizer(amClock));
+    dayController.onAmEndValidChanged(validVisualizer(amClock));
+    dayController.onPmStartValidChanged(validVisualizer(pmClock));
+    dayController.onPmEndValidChanged(validVisualizer(pmClock));
+
+    // add clocks to DOM
+    root.appendChild(amClock.clock);
+    root.appendChild(pmClock.clock);
 };
-
 
 const timeStringToMinutes = timeString => {
     if (!/\d\d:\d\d/.test(timeString)) return 0; // if we cannot parse the string to a time, assume 00:00
@@ -614,8 +867,28 @@ const timeStringToMinutes = timeString => {
     return hour * 60 + minute;
 }
 
+const timeStringToTime = (timeString, minutes = false) => {
+    if (!/\d\d:\d\d/.test(timeString)) return 0; // if we cannot parse the string to a time, assume 00:00
+    const [hour, minute] = timeString.split(":").map(Number);
+    return minutes ? minute : hour;
+}
+
+const hiddenInput = (name) => {
+    const hiddenInput = document.createElement('input');
+    hiddenInput.setAttribute('type', 'hidden')
+    hiddenInput.setAttribute('id', `hidden-input-${name}`)
+    return hiddenInput
+}
+
 const totalMinutesToTimeString = totalMinutes => {
     const hour = (totalMinutes / 60) | 0; // div
     const minute = totalMinutes % 60;
     return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+}
+
+const stringToTimeString = (string) => {
+    const [hour, minute] = string.split(":").map(String);
+    const newHour = hour.length < 2 ? "0" + hour : hour
+    const newMinute = minute.length < 2 ? "0" + minute : minute
+    return newHour + ":" + newMinute;
 }
